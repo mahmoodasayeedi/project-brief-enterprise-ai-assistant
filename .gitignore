@@ -1,0 +1,16 @@
+# Environment & secrets
+venv/
+.env
+__pycache__/
+.ipynb_checkpoints/
+
+# Raw & extracted documents (private company data)
+documents/*
+!documents/documents.zip
+__MACOSX/
+.DS_Store
+
+# Generated files (can be rebuilt with ingest.py)
+vector_store.json
+doc_catalog.json
+eval_results.csv
