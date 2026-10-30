@@ -1,0 +1,7 @@
+-r requirements.txt
+langchain-text-splitters>=1.0
+pypdf
+docx2txt
+pandas
+ipykernel
+uvicorn
