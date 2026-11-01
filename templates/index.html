@@ -68,32 +68,63 @@
   const md = (text) => DOMPurify.sanitize(marked.parse(text));
   const esc = (t) => t.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+  function renderMeta(meta) {
+    let html = `<div class="meta"><span class="badge">🔀 ${meta.route.difficulty}</span>`
+             + `<span class="badge">🏢 ${meta.route.department}</span><span class="badge">🤖 ${meta.model}</span>`;
+    if (meta.sources.length) {
+      html += `<details><summary>📚 Sources (${meta.sources.length})</summary><ul>`
+            + meta.sources.map(s => `<li>${esc(s.source.split(/[\\/]/).pop())} · ${s.date} · `
+            + `<span class="${s.status}">${s.status}</span> · relevance ${s.score}</li>`).join("")
+            + `</ul></details>`;
+    }
+    return html + "</div>";
+  }
+
   async function ask(question) {
     document.getElementById("suggestions").style.display = "none";
     addMessage("user", esc(question));
-    const thinking = addMessage("bot", '<span class="typing">Searching company documents...</span>');
+    const bubble = addMessage("bot", '<span class="typing">Searching company documents...</span>');
     send.disabled = true;
+    let answer = "";
+    let meta = null;
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question, history }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Something went wrong");
-
-      let meta = `<div class="meta"><span class="badge">🔀 ${data.route.difficulty}</span>`
-               + `<span class="badge">🏢 ${data.route.department}</span><span class="badge">🤖 ${data.model}</span>`;
-      if (data.sources.length) {
-        meta += `<details><summary>📚 Sources (${data.sources.length})</summary><ul>`
-              + data.sources.map(s => `<li>${esc(s.source.split(/[\\/]/).pop())} · ${s.date} · `
-              + `<span class="${s.status}">${s.status}</span> · relevance ${s.score}</li>`).join("")
-              + `</ul></details>`;
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Something went wrong");
       }
-      thinking.innerHTML = md(data.answer) + meta + "</div>";
-      history.push({ role: "user", content: question }, { role: "assistant", content: data.answer });
+
+      // Read the stream: the server sends one JSON object per line (NDJSON)
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop();                 // keep the last, possibly unfinished line
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === "meta") meta = event;
+          else if (event.type === "token") answer += event.text;
+          else if (event.type === "error") throw new Error(event.message);
+        }
+        if (answer) {                         // re-draw the growing answer with a blinking cursor
+          bubble.innerHTML = md(answer + " ▍");
+          chat.scrollTop = chat.scrollHeight;
+        }
+      }
+
+      bubble.innerHTML = md(answer) + (meta ? renderMeta(meta) : "");
+      history.push({ role: "user", content: question }, { role: "assistant", content: answer });
     } catch (err) {
-      thinking.innerHTML = "⚠️ " + esc(err.message);
+      bubble.innerHTML = (answer ? md(answer) + "<br>" : "") + "⚠️ " + esc(err.message);
     } finally {
       send.disabled = false;
       chat.scrollTop = chat.scrollHeight;

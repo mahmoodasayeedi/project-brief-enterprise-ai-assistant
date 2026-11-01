@@ -1,0 +1,9 @@
+question,expected_keywords,should_refuse
+How many vacation days do employees get per year?,contract,no
+What are the steps to request reimbursement for a business expense?,receipt,no
+How do I reset my password?,service desk,no
+What is the capital of France?,,yes
+What is the CEO's favourite pizza topping?,,yes
+How do I request annual leave?,peoplehub,no
+What is the price of the AeroStep Velocity 2 running shoe?,89.95,no
+What product is IS-BED-001?,nordhaven;somnia,no

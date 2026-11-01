@@ -33,8 +33,10 @@ SYSTEM_PROMPT = """You are the IronStore Enterprise AI Assistant, helping employ
 
 RULES (follow strictly):
 1. Answer ONLY using the CONTEXT below. Never invent policies, numbers, names or links.
-2. If the context does not contain the answer, say clearly: "I couldn't find this in the IronStore documents."
-   Then suggest who to contact (e.g. the relevant department). Do not guess.
+2. If the context contains NOTHING relevant, say clearly: "I couldn't find this in the IronStore documents."
+   and suggest who to contact. Do not guess.
+   If the context answers only PARTIALLY (e.g. "it depends on..." or "see your PeopleHub profile"),
+   do NOT use that sentence: explain what the documents DO say, then what is missing and where to find it.
 3. Every fact must cite its source in square brackets, e.g. [HR/leave_policy_2025.md].
 4. Documents can be outdated or conflict:
    - Prefer chunks marked STATUS: current and with the most recent DATE.
@@ -112,44 +114,67 @@ class IronStoreAssistant:
                           f"| STATUS: {m['status']}{extra}{warn} | relevance={score:.2f}\n{doc.page_content}")
         return "\n\n".join(blocks)
 
-    # -- main entry point ---------------------------------------------------------
-    def ask(self, question: str, history: list[dict] | None = None) -> dict:
+        # -- main entry point (STREAMING) ---------------------------------------------
+    def ask_stream(self, question: str, history: list[dict] | None = None):
+        """Yields events: first {"type": "meta", ...} with routing + sources,
+        then many {"type": "token", "text": "..."} pieces of the answer."""
         history = history or []
         query = self.standalone_question(question, history)
         route = self.router.invoke(query)
+        meta = {"type": "meta", "route": route.model_dump(), "query": query,
+                "model": config.CHEAP_MODEL, "sources": [], "best_score": 0.0}
 
         if not route.is_company_question and route.department == "General":
-            return {"answer": "I'm IronStore's internal assistant, so I can only help with company "
-                              "policies, procedures and work tasks. What would you like to know about IronStore?",
-                    "sources": [], "model": config.CHEAP_MODEL, "route": route.model_dump(), "query": query}
+            yield meta
+            yield {"type": "token", "text": "I'm IronStore's internal assistant, so I can only help with company "
+                                            "policies, procedures, products and work tasks. "
+                                            "What would you like to know about IronStore?"}
+            return
 
         hits = self.retrieve(query, route.department)
-        best = hits[0][1] if hits else 0.0
+        best = float(hits[0][1]) if hits else 0.0
+        meta["best_score"] = best
 
-        # -- 4. guardrail: be honest when we don't know ---------------------------
+        # -- guardrail: be honest when we don't know ---------------------------
         if best < config.MIN_SIMILARITY:
-            return {"answer": "I couldn't find reliable information about this in the IronStore documents, "
-                              "so I don't want to guess. Please contact the "
-                              f"**{route.department}** team or check with your manager.\n\nConfidence: Low",
-                    "sources": [], "model": "-", "route": route.model_dump(), "query": query, "best_score": best}
+            meta["model"] = "-"
+            yield meta
+            yield {"type": "token", "text": "I couldn't find reliable information about this in the IronStore "
+                                            "documents, so I don't want to guess. Please contact the "
+                                            f"**{route.department}** team or check with your manager.\n\nConfidence: Low"}
+            return
 
-        # -- 5. model routing: easy -> cheap, hard -> smart ----------------------
+        # -- model routing: easy -> cheap, hard -> smart ----------------------
         llm = self.smart if route.difficulty == "hard" else self.cheap
         messages = [SystemMessage(SYSTEM_PROMPT.format(context=self.format_context(hits)))]
         for m in history[-6:]:
             messages.append(HumanMessage(m["content"]) if m["role"] == "user" else AIMessage(m["content"]))
         messages.append(HumanMessage(question))
-        answer = llm.invoke(messages).content
 
         sources = []
         for doc, score in hits:
             m = doc.metadata
             if m["source"] not in [s["source"] for s in sources]:
                 sources.append({"source": m["source"], "department": m["department"], "date": m["date"],
-                                "status": m["status"], "score": round(score, 2)})
-        return {"answer": answer, "sources": sources, "model": llm.model_name,
-                "route": route.model_dump(), "query": query, "best_score": best}
+                                "status": m["status"], "score": round(float(score), 2)})
+        meta.update(model=llm.model_name, sources=sources)
+        yield meta                                   # 1) send routing + sources first
 
+        for chunk in llm.stream(messages):           # 2) then the answer, piece by piece
+            if chunk.text:
+                yield {"type": "token", "text": str(chunk.text)}
+
+    # -- non-streaming version (used by evaluate.py) ---------------------------------
+    def ask(self, question: str, history: list[dict] | None = None) -> dict:
+        """Collects the whole stream into one dict, like before."""
+        result, answer = {}, ""
+        for event in self.ask_stream(question, history):
+            if event["type"] == "meta":
+                result = {k: v for k, v in event.items() if k != "type"}
+            else:
+                answer += event["text"]
+        result["answer"] = answer
+        return result
 
 if __name__ == "__main__":  # quick terminal chat
     bot = IronStoreAssistant()
