@@ -16,7 +16,7 @@ CHEAP_MODEL = os.getenv("CHEAP_MODEL", "gpt-5.4-mini")
 SMART_MODEL = os.getenv("SMART_MODEL", "gpt-5.4")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "512"))
-PINECONE_INDEX = os.getenv("PINECONE_INDEX", "ironstore-assistant")
+PINECONE_INDEX = os.getenv("PINECONE_INDEX", "ironstore-assistant-v2")
 # --- Chunking ---
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))

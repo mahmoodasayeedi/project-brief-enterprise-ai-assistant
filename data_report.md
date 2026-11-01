@@ -4,7 +4,7 @@
 - Current documents: **82**
 - Outdated versions: **1**
 - Exact duplicates removed: **0**
-- Chunks indexed: **4050**
+- Chunks indexed: **3979**
 
 ## Documents
 
@@ -116,7 +116,7 @@
 
 ## SKU conflicts (same code in several files)
 
+- `IS-BED-003` → `documents\product_catalog\IronStore_Product_Catalog_Bedding_and_Linens.pdf`, `documents\product_catalog\IronStore_Product_Catalog_Home_Essentials.pdf`
 - `IS-BED-004` → `documents\product_catalog\IronStore_Product_Catalog_Bedding_and_Linens.pdf`, `documents\product_catalog\IronStore_Product_Catalog_Home_Essentials.pdf`
 - `IS-BED-001` → `documents\product_catalog\IronStore_Product_Catalog_Bedding_and_Linens.pdf`, `documents\product_catalog\IronStore_Product_Catalog_Home_Essentials.pdf`
 - `IS-BED-002` → `documents\product_catalog\IronStore_Product_Catalog_Bedding_and_Linens.pdf`, `documents\product_catalog\IronStore_Product_Catalog_Home_Essentials.pdf`
-- `IS-BED-003` → `documents\product_catalog\IronStore_Product_Catalog_Bedding_and_Linens.pdf`, `documents\product_catalog\IronStore_Product_Catalog_Home_Essentials.pdf`

@@ -21,6 +21,7 @@
   .meta { margin-top: 10px; font-size: 12px; color: #6b7280; }
   .meta details summary { cursor: pointer; }
   .meta ul { margin: 6px 0 0; padding-left: 18px; }
+  .msg a { color: #1d4ed8; }
   .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; background: #eef2f7; margin-right: 4px; }
   .current { color: #15803d; } .outdated { color: #b45309; }
   .typing { color: #6b7280; font-style: italic; }
@@ -65,7 +66,15 @@
     chat.scrollTop = chat.scrollHeight;
     return div;
   }
-  const md = (text) => DOMPurify.sanitize(marked.parse(text));
+  // Turn citations like [IronStore_X.pdf, p. 2] into links that open the PDF on that page
+  const linkify = (text) => text.replace(/\[([\w.\-]+\.pdf)(?:,\s*p(?:age|\.)?\s*(\d+))?\]/gi,
+    (all, file, page) => `[📄 ${file.replace(/^IronStore_|\.pdf$/g, "").replace(/_/g, " ")}${page ? ", p. " + page : ""}]`
+                       + `(/files/${encodeURIComponent(file)}${page ? "#page=" + page : ""})`);
+  const md = (text) => DOMPurify.sanitize(marked.parse(linkify(text)));
+  function render(el, html) {               // draw HTML and make every link open in a new tab
+    el.innerHTML = html;
+    el.querySelectorAll("a").forEach(a => { a.target = "_blank"; a.rel = "noopener"; });
+  }
   const esc = (t) => t.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
   function renderMeta(meta) {
@@ -73,8 +82,9 @@
              + `<span class="badge">🏢 ${meta.route.department}</span><span class="badge">🤖 ${meta.model}</span>`;
     if (meta.sources.length) {
       html += `<details><summary>📚 Sources (${meta.sources.length})</summary><ul>`
-            + meta.sources.map(s => `<li>${esc(s.source.split(/[\\/]/).pop())} · ${s.date} · `
-            + `<span class="${s.status}">${s.status}</span> · relevance ${s.score}</li>`).join("")
+            + meta.sources.map(s => `<li><a href="${s.url}">📄 ${esc(s.file)}</a>`
+            + (s.page ? ` · page ${s.page}` : "") + (s.section ? ` · <i>${esc(s.section)}</i>` : "")
+            + ` · ${s.date} · <span class="${s.status}">${s.status}</span> · relevance ${s.score}</li>`).join("")
             + `</ul></details>`;
     }
     return html + "</div>";
@@ -116,12 +126,12 @@
           else if (event.type === "error") throw new Error(event.message);
         }
         if (answer) {                         // re-draw the growing answer with a blinking cursor
-          bubble.innerHTML = md(answer + " ▍");
+          render(bubble, md(answer + " ▍"));
           chat.scrollTop = chat.scrollHeight;
         }
       }
 
-      bubble.innerHTML = md(answer) + (meta ? renderMeta(meta) : "");
+      render(bubble, md(answer) + (meta ? renderMeta(meta) : ""));
       history.push({ role: "user", content: question }, { role: "assistant", content: answer });
     } catch (err) {
       bubble.innerHTML = (answer ? md(answer) + "<br>" : "") + "⚠️ " + esc(err.message);

@@ -6,11 +6,18 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from rag import IronStoreAssistant
 
 app = FastAPI(title="IronStore Enterprise AI Assistant")
+
+# Serve the PDFs so answers can link to them. On Vercel, public/ is served automatically;
+# locally (uvicorn) we mount it ourselves.
+FILES_DIR = Path(__file__).parent / "public" / "files"
+if FILES_DIR.exists():
+    app.mount("/files", StaticFiles(directory=FILES_DIR), name="files")
 
 _bot = None
 

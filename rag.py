@@ -9,6 +9,19 @@ from pydantic import BaseModel, Field
 from pathlib import Path
 import config
 import re
+from pathlib import PureWindowsPath
+from urllib.parse import quote
+
+
+def file_name(source: str) -> str:
+    """'documents\\HR_policies\\Leave.pdf' -> 'Leave.pdf' (works for Windows AND Linux paths, so also on Vercel)."""
+    return PureWindowsPath(source).name
+
+
+def file_url(source: str, page=None) -> str:
+    """Link to the PDF in public/files, opened directly on the right page."""
+    url = "/files/" + quote(file_name(source))
+    return f"{url}#page={int(page)}" if page else url
 SKU_RE = r"\b[A-Z]{2,4}(?:-[A-Z0-9]{1,6}){2,4}\b"
 
 DEPARTMENTS = ["HR_policies", "IT", "Finance", "Sales", "Legal_Terms",
@@ -37,7 +50,8 @@ RULES (follow strictly):
    and suggest who to contact. Do not guess.
    If the context answers only PARTIALLY (e.g. "it depends on..." or "see your PeopleHub profile"),
    do NOT use that sentence: explain what the documents DO say, then what is missing and where to find it.
-3. Every fact must cite its source in square brackets, e.g. [HR/leave_policy_2025.md].
+3. Every fact must cite its source in square brackets WITH the page number, exactly like this:
+   [IronStore_Leave_and_Absence_Policy.pdf, p. 2]. Use one bracket per source.
 4. Documents can be outdated or conflict:
    - Prefer chunks marked STATUS: current and with the most recent DATE.
    - If an OUTDATED chunk says something different, mention briefly that the policy changed
@@ -108,10 +122,13 @@ class IronStoreAssistant:
         blocks = []
         for doc, score in hits:
             m = doc.metadata
-            extra = f" | SUPERSEDED BY: {m['superseded_by']}" if m.get("superseded_by") else ""
+            page = f" | PAGE: {int(m['page'])}" if m.get("page") else ""
+            section = f" | SECTION: {m['section']}" if m.get("section") else ""
+            extra = f" | SUPERSEDED BY: {file_name(m['superseded_by'])}" if m.get("superseded_by") else ""
             warn = f" | WARNING: {m['warning']}" if m.get("warning") else ""
-            blocks.append(f"--- SOURCE: {Path(m['source']).name} | DEPT: {m['department']} | DATE: {m['date']} "
-                          f"| STATUS: {m['status']}{extra}{warn} | relevance={score:.2f}\n{doc.page_content}")
+            blocks.append(f"--- SOURCE: {file_name(m['source'])}{page}{section} | DEPT: {m['department']} "
+                          f"| DATE: {m['date']} | STATUS: {m['status']}{extra}{warn} | relevance={score:.2f}\n"
+                          f"{doc.page_content}")
         return "\n\n".join(blocks)
 
         # -- main entry point (STREAMING) ---------------------------------------------
@@ -154,9 +171,13 @@ class IronStoreAssistant:
         sources = []
         for doc, score in hits:
             m = doc.metadata
-            if m["source"] not in [s["source"] for s in sources]:
-                sources.append({"source": m["source"], "department": m["department"], "date": m["date"],
-                                "status": m["status"], "score": round(float(score), 2)})
+            page = int(m["page"]) if m.get("page") else None
+            if any(s["source"] == m["source"] and s["page"] == page for s in sources):
+                continue  # same document + same page already listed
+            sources.append({"source": m["source"], "file": file_name(m["source"]), "page": page,
+                            "section": m.get("section", ""), "url": file_url(m["source"], page),
+                            "department": m["department"], "date": m["date"],
+                            "status": m["status"], "score": round(float(score), 2)})
         meta.update(model=llm.model_name, sources=sources)
         yield meta                                   # 1) send routing + sources first
 

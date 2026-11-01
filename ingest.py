@@ -1,6 +1,7 @@
 #import 
 import argparse
 import hashlib
+import importlib
 import json
 import re
 from datetime import date
@@ -11,6 +12,12 @@ import config
 from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone, ServerlessSpec
 import re
+from pypdf import PdfReader
+
+try:
+    docx2txt = importlib.import_module("docx2txt")
+except ImportError:
+    docx2txt = None
 SKU_RE = r"\b[A-Z]{2,4}(?:-[A-Z0-9]{1,6}){2,4}\b"
 
 #1. LOAD — read many file types into plain text
@@ -21,10 +28,12 @@ def read_file(path: Path) -> str:
     ext = path.suffix.lower()
     try:
         if ext == ".pdf":
-            from pypdf import PdfReader
+           
             return "\n".join((p.extract_text() or "") for p in PdfReader(str(path)).pages)
         if ext == ".docx":
-            import docx2txt
+            if docx2txt is None:
+                print(f"  ⚠️  Cannot read {path.name}: install docx2txt to support .docx files")
+                return ""
             return docx2txt.process(str(path))
         if ext in {".html", ".htm"}:
             raw = path.read_text(encoding="utf-8", errors="ignore")
@@ -36,7 +45,35 @@ def read_file(path: Path) -> str:
         return ""
     print(f"  ⏭️  Skipping unsupported file type: {path.name}")
     return ""
+# Known broken words found during data exploration
+KNOWN_FIXES = {
+    "Wroc■aw": "Wrocław",
+    "Pozna■": "Poznań",
+    "■ód■": "Łódź",
+    "SpO■": "SpO2",
+    "CO■": "CO2",
+}
 
+
+def clean_text(text: str) -> str:
+    """NLP cleaning: remove HTML leftovers, fix broken characters, tidy whitespace."""
+    # 1. Remove HTML tags like <div style="page-break-after: always;"></div>
+    text = re.sub(r"<[^>]+>", " ", text)
+
+    # 2. Fix known broken words, then remove any leftover ■
+    for broken, fixed in KNOWN_FIXES.items():
+        text = text.replace(broken, fixed)
+    text = text.replace("■", "")
+
+    # 3. Normalize fancy quotes, dashes and the hidden bullet character
+    text = text.replace("’", "'").replace("“", '"').replace("”", '"').replace("−", "-")
+    text = text.replace("\x7f", "•")
+
+    # 4. Tidy whitespace: many spaces -> one space, 3+ empty lines -> one empty line
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)
+
+    return text.strip()
 # 2. METADATA — department, date, version, title
 DEPARTMENTS = {
     "HR": ["hr", "human resources", "leave", "vacation", "payroll", "onboarding", "benefits", "employee handbook"],
@@ -243,6 +280,18 @@ def analyse(docs: list[dict]) -> dict:
         d.pop("_sh", None)
     return report
 
+def read_pdf_pages(path: Path) -> list[str]:
+    """Read a PDF page by page, so every chunk knows its page number."""
+    
+    try:
+        return [(p.extract_text() or "") for p in PdfReader(str(path)).pages]
+    except Exception as e:
+        print(f"  ⚠️  Could not read {path.name}: {e}")
+        return []
+
+
+# Section headings like "4.1 Entitlement" (policies) or "Page 3 — Running and Training" (catalogs)
+HEADING_RE = re.compile(r"^(?:\d+(?:\.\d+)*\.?\s+[A-Z][^\n]{2,80}|Page \d+(?: of \d+)? — [^\n]{2,80})$", re.M)
 # 4. CHUNK
 def make_chunks(docs: list[dict]) -> list[Document]:
     splitter = RecursiveCharacterTextSplitter(chunk_size=config.CHUNK_SIZE, chunk_overlap=config.CHUNK_OVERLAP)
@@ -250,21 +299,31 @@ def make_chunks(docs: list[dict]) -> list[Document]:
     for d in docs:
         if d["status"] == "duplicate" or not d["text"].strip():
             continue
-        for i, piece in enumerate(splitter.split_text(d["text"])):
-            h = hashlib.md5(normalize(piece).encode()).hexdigest()
-            if h in seen:  # same paragraph copied into several docs -> keep once
-                continue
-            seen.add(h)
-            header = f"[{d['title']} | Dept: {d['department']} | Date: {d['date'] or 'unknown'}]\n"
-            chunks.append(Document(
-                page_content=header + piece,
-                metadata={
-                    "source": d["source"], "title": d["title"], "department": d["department"],
-                    "date": d["date"] or "unknown", "status": d["status"],
-                    "superseded_by": d.get("superseded_by", ""), "warning": d.get("warning", ""),
-                    "chunk": i,
-                },
-            ))
+        i = 0
+        section = d["title"]                                   # until we meet the first heading
+        for page_no, page_text in enumerate(d["pages"], start=1):
+            for piece in splitter.split_text(page_text):
+                headings = HEADING_RE.findall(piece)
+                # if the chunk STARTS with a heading, that's its section; otherwise it continues the last one
+                chunk_section = headings[0] if headings and piece.lstrip().startswith(headings[0]) else section
+                if headings:
+                    section = headings[-1]
+                h = hashlib.md5(normalize(piece).encode()).hexdigest()
+                if h in seen:  # same paragraph copied into several docs -> keep once
+                    continue
+                seen.add(h)
+                header = (f"[{d['title']} | Dept: {d['department']} | Date: {d['date'] or 'unknown'} "
+                          f"| Page {page_no} | Section: {chunk_section}]\n")
+                chunks.append(Document(
+                    page_content=header + piece,
+                    metadata={
+                        "source": d["source"], "title": d["title"], "department": d["department"],
+                        "date": d["date"] or "unknown", "status": d["status"],
+                        "superseded_by": d.get("superseded_by", ""), "warning": d.get("warning", ""),
+                        "page": page_no, "section": chunk_section.strip()[:120], "chunk": i,
+                    },
+                ))
+                i += 1
     return chunks
 
 
@@ -309,17 +368,21 @@ def main():
 
     docs = []
     for f in files:
-        text = read_file(f)
+        if f.suffix.lower() == ".pdf":
+            pages = [clean_text(p) for p in read_pdf_pages(f)]
+        else:
+            pages = [clean_text(read_file(f))]
+        text = "\n\n".join(pages)
         if not text.strip():
             continue
         dt = extract_date(f.stem, text)
         docs.append({
-            "source": str(f.relative_to(root)), "text": text, "title": extract_title(f, text),
+            "source": str(f.relative_to(root)), "text": text, "pages": pages,
+            "title": extract_title(f, text),
             "department": extract_department(f, text), "date": dt.isoformat() if dt else None,
             "version": extract_version(f.stem, text), "mtime": f.stat().st_mtime,
             "family": family_key(f.stem), "status": "current",
         })
-
     report = analyse(docs)
     chunks = make_chunks(docs)
     write_report(docs, report, len(chunks))
