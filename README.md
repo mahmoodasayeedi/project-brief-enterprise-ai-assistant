@@ -34,7 +34,7 @@ build a frontend app connected to it, and deploy.
 | **Bonus:** API + tests | ✅ | FastAPI (normal + streaming endpoints), `pytest` tests, Swagger UI |
 | **Bonus:** frontend app | ✅ | HTML/JavaScript chat with live streaming |
 | **Bonus:** deployment | ✅ | Vercel |
-| Evaluation system | ✅ | Golden dataset (25 questions), retrieval metrics, BLEU/ROUGE baseline, LLM-as-a-judge: **96% pass rate, 5.00/5 faithfulness** |
+| Evaluation system | ✅ | Golden dataset (25 questions), retrieval metrics, BLEU/ROUGE baseline, LLM-as-a-judge: **~90% pass rate (80–96% across repeated runs), faithfulness 4.8–5.0/5** |
 | "Under the hood" page | ✅ | Interactive RAG flow with real data + evaluation dashboard (`/insights`) |
 
 ---
@@ -44,6 +44,7 @@ build a frontend app connected to it, and deploy.
 | Part | Choice | Why |
 |---|---|---|
 | Framework | **LangChain v1** (`langchain-core`, `langchain-openai`) | Modern API: `with_structured_output`, `.stream()` |
+| Model choice | Tested `gpt-5.4-mini`, GPT-6 Luna, GPT-6.1 Sol (v7–v8) | Same quality band; `gpt-5.4-mini` was fastest (2.8s vs 3.5–4.1s), so it stays |
 | LLMs | OpenAI **`gpt-5.4-mini`** + **`gpt-5.4`** with **model routing** | Cheap model for easy questions and routing, capable model only when needed |
 | Embeddings | OpenAI **`text-embedding-3-small`**, 512 dimensions | Very cheap; shorter vectors keep the index small with little quality loss |
 | Vector database | **Pinecone** (serverless) | Hosted, free tier, metadata filters (department, SKU) |
@@ -257,30 +258,42 @@ expected source documents and pages, and evidence sentences. 8 categories: simpl
 SKU conflict, **conflicts between documents**, outdated catalog, partial answers, and refusals (off-topic, unknown,
 prompt injection). A question **passes** when correctness ≥ 4, faithfulness ≥ 4 and the behaviour is right.
 
-**Final result (v4):** **24/25 passed (96%)** · faithfulness **5.00/5** (no hallucination in any answer) ·
-retrieval hit rate 100% · MRR 1.00 · context recall 89%.
+**Final result (deployed setup, `gpt-5.4-mini`):** pass rate **~90% on average, 80–96% across four repeated runs** ·
+faithfulness **4.76–5.00/5 in every run** (the assistant reliably does not hallucinate) · retrieval hit rate 100% ·
+MRR 1.00 · context recall 89%. We report a **range**, not the best run, because identical runs differed by up to 16 points.
 
-**Why word counting isn't enough (proof from our data):** ROUGE-L averaged only **0.51**, and 6 answers the judge
-graded correct scored below 0.30, mostly refusals and partial answers, where the right answer is a *behaviour*,
-not a sentence. Two answers with almost the same ROUGE-L (0.17 vs 0.26) were wrong and correct respectively.
+**Why word counting isn't enough (proof from our data):** ROUGE-L averaged only **~0.50**, and in every run 5–8 answers
+the judge graded correct scored below 0.30, mostly refusals and partial answers, where the right answer is a *behaviour*,
+not a sentence. Answers with almost the same ROUGE-L were wrong and correct respectively.
 
-**Measure → fix → measure again:**
+**Measure → fix → measure again (`eval_history.json`, shown on `/insights`):**
 
 | Version | Pass rate | What changed and what we learned |
 |---|---|---|
 | v1 | 84% | Baseline. Retrieval showed **department routing hid a cross-department conflict** (SpendHub vs SpendFlow) |
-| v2 | 88% | Prompt rules: warn when the only source is outdated, compare sources for conflicts. Fixed an unfair test (Q23) |
-| v3 | 80% | **Diversity** in search (20 candidates, max 2 chunks per document) fixed the SpendFlow conflict. The drop came from a **wrong reference answer** (Q10) and an over-eager conflict rule (Q12) |
-| v4 | **96%** | Corrected the Q10 reference answer |
+| v2 | 88% | Prompt rules for outdated and conflicting sources. Fixed an unfair test (Q23) |
+| v3 | 80% | **Diversity** in search (20 candidates, max 2 chunks per document) fixed the SpendFlow retrieval. Drop caused by a **wrong reference answer** (Q10) and an over-eager conflict rule (Q12) |
+| v4 | 96% | Corrected the Q10 reference answer |
+| v5 | 92% | **Multi-query retrieval** (3 extra phrasings): context recall 89% → 98%, but latency 2.8s → 4.7s and no gain in answers → **kept off by default** (switch: `MULTI_QUERY`) |
+| v7 | 92% | **GPT-6 Luna / GPT-6.1 Sol**: same quality, relevance slightly higher, but 4.1s latency. The router sent every question to the cheap model, so Sol was never used |
+| v8 | 92% | Luna with `reasoning_effort="low"`: 3.5s, still slower than `gpt-5.4-mini` → **kept `gpt-5.4-mini`** |
+| v9 | 88% | Same setup as v4 → **8-point difference with no change at all** |
+| v10 / v10b | 80% / 96% | Fairer references (Q11, Q15 extras made optional) + judge rule for acceptable alternatives. **Identical runs, 16 points apart** |
 
 **Lessons learned:**
+- **One run is not enough.** With 25 questions, one question = 4 points, and identical runs differed by up to 16 points.
+  Decisions between similar setups were made on **stable** metrics (latency, faithfulness, context recall), not on small pass-rate differences.
+- **Find the flaky questions, then their root cause.** Q04 and Q12 flip between runs because two prompt rules contradict each other
+  ("prefer the most recent source" vs "mention all conflicting values"), not because the model is too weak.
+- **The bottleneck is retrieval and prompts, not the model:** three model setups (gpt-5.4-mini, GPT-6 Luna, Luna low-reasoning)
+  all landed in the same quality band. The only failure in every run is Q05, a retrieval problem.
 - **Several metric types together locate the problem:** retrieval metrics showed whether a failure was in *search*,
   the judge showed whether it was in the *answer*. Page-level hits looked perfect while the right *sentence* was missing,
   which led us to add context recall.
 - **Re-run everything after every change:** one fix caused a regression elsewhere (v3).
-- **Tests can be wrong too:** two "failures" were wrong or unfair references. We only changed a test after checking
-  the source document, never to hide a real problem.
-- **LLM outputs vary between runs**, even at temperature 0, so small differences need several runs to be trusted.
+- **Tests can be wrong too:** several "failures" were wrong or over-specified references (Q10, Q11, Q15, Q23).
+  We only changed a test after checking the source document, never to hide a real problem (Q05 was never changed).
+- **No tuning on the test:** the multi-query prompt uses neutral examples, not words from the test questions (no data leakage).
 - Earlier keyword-based evaluation (`evaluate.py`, 8/8) and its lessons: the documents contain no fixed number of
   vacation days and no password-reset steps, and the assistant correctly did not invent them.
 
@@ -339,10 +352,12 @@ and the vectors live in Pinecone. The `public/` folder is served automatically, 
 
 - **Document access:** for this prototype the PDFs are public in `public/files` (the data is synthetic and was already in the repo).
   In production they would stay in access-controlled storage (e.g. SharePoint or S3 with signed URLs) behind a login
-- **Q05 still fails:** the 30-day dormant-account rule sits in a long bulleted list, so its embedding matches the question
-  weakly and the conflict with the 45-day rule is missed → **multi-query retrieval** or **keyword (BM25) search**
+- **Q05 still fails in every run:** the 30-day dormant-account rule sits in a long bulleted list, so it rarely reaches the model
+  together with the 45-day rule. Multi-query retrieval found it but then lost the other value → next: **keyword (BM25) search** or a re-ranker
+- **Flaky behaviour on conflicts (Q04, Q12):** two prompt rules contradict each other → next step: one clear conflict rule
+  ("never decide between conflicting current documents; different cases are not conflicts") and 3 repeated runs per version
 - **Synonyms** ("vacation" vs "annual leave") can weaken retrieval → add query expansion
-- **Evaluation limits:** 25 questions written with document vocabulary (real employees phrase things differently);
+- **Evaluation limits:** pass rate varies ±8 points between identical runs; 25 questions written with document vocabulary (real employees phrase things differently);
   context recall only knows the evidence we listed; the judge is from the same model family as the assistant
   (a judge from another provider would reduce bias)
 - Add a **re-ranker** to improve the order of retrieved chunks

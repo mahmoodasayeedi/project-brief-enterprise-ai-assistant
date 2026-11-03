@@ -269,7 +269,7 @@ const STEPS = [
   { key: "question",  icon: "💬", t: "Question",      s: "Plain language" },
   { key: "rewrite",   icon: "🔁", t: "Rewrite",       s: "Follow-ups → full question" },
   { key: "router",    icon: "🔀", t: "Router",        s: "Cheap model fills a form" },
-  { key: "search",    icon: "🔎", t: "Hybrid search", s: "Exact SKU + meaning" },
+  { key: "search",    icon: "🔎", t: "Hybrid search", s: "Multi-query + exact SKU" },
   { key: "guardrail", icon: "🛡️", t: "Guardrail",     s: "Too weak? Don't guess" },
   { key: "generate",  icon: "🧠", t: "Model routing", s: "Easy → mini · Hard → big" },
   { key: "cite",      icon: "📄", t: "Answer",        s: "Streamed, with page links" },
@@ -358,6 +358,8 @@ function renderDetail(j, key) {
       const docs = new Set((j.sources || []).map(s => s.file)).size;
       return `<h4>🔎 Hybrid search in Pinecone</h4>
         <p class="why">The question becomes a 512-number "meaning address" and Pinecone finds the closest chunks. Product codes are matched <b>exactly</b> (keyword search). At most 2 chunks per document, so different documents, and their conflicts, get a seat.</p>
+        ${(j.search_queries || []).length > 1 ? `<p class="verdict"><b>🔀 Multi-query:</b> searched with ${j.search_queries.length} phrasings, keeping each chunk's best score:</p>
+        <ul class="small muted" style="margin:0 0 12px;padding-left:20px">${j.search_queries.map((q, i) => `<li>${esc(q)}${i === 0 ? " <i>(original)</i>" : ""}</li>`).join("")}</ul>` : ""}
         ${rows ? `<table class="src-table"><thead><tr><th>Document</th><th>Page</th><th>Section</th><th>Status</th><th>Relevance</th></tr></thead><tbody>${rows}</tbody></table>
         <p class="verdict muted">${docs} different document${docs === 1 ? "" : "s"} handed to the model. Outdated chunks are kept only to explain what changed.</p>` : '<p class="empty">Waiting for search results…</p>'}`;
     }
@@ -437,7 +439,8 @@ async function askLive() {
         if (!line.trim()) continue;
         const ev = JSON.parse(line);
         if (ev.type === "meta") {
-          Object.assign(current, { route: ev.route, query: ev.query, model: ev.model, best_score: ev.best_score, sources: ev.sources });
+          Object.assign(current, { route: ev.route, query: ev.query, model: ev.model, best_score: ev.best_score,
+                                   sources: ev.sources, search_queries: ev.search_queries || [] });
           current.reached = 4; selectedStep = 3; setStates(5, 4);
           $("#detail").innerHTML = renderDetail(current, "search");
         } else if (ev.type === "token") {

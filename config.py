@@ -25,3 +25,6 @@ CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))
 TOP_K = int(os.getenv("TOP_K", "6"))
 # If the best chunk is less similar than this, the assistant says "I don't know".
 MIN_SIMILARITY = float(os.getenv("MIN_SIMILARITY", "0.30"))
+
+MULTI_QUERY = os.getenv("MULTI_QUERY", "true").lower() == "false"   # search with several phrasings
+MULTI_QUERY_N = int(os.getenv("MULTI_QUERY_N", "3"))                # how many extra phrasings

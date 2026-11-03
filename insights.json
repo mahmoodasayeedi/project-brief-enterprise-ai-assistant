@@ -4,15 +4,15 @@
     "passed": 24,
     "pass_rate": 0.96,
     "correctness": 4.72,
-    "faithfulness": 5.0,
-    "relevance": 4.72,
+    "faithfulness": 4.96,
+    "relevance": 4.68,
     "retrieval_hit": 1.0,
     "retrieval_recall": 1.0,
     "mrr": 1.0,
     "context_recall": 0.8863636363636364,
-    "bleu": 0.36281840693150846,
-    "rougeL": 0.5084408157387702,
-    "latency_s": 2.8076
+    "bleu": 0.32179199383816387,
+    "rougeL": 0.48288004595103245,
+    "latency_s": 2.6319999999999997
   },
   "history": [
     {
@@ -86,6 +86,132 @@
       "bleu": 0.36281840693150846,
       "rougeL": 0.5084408157387702,
       "latency_s": 2.8076
+    },
+    {
+      "label": "v5",
+      "note": "Multi-query retrieval: 3 extra phrasings per question",
+      "date": "2026-11-03",
+      "questions": 25,
+      "passed": 23,
+      "pass_rate": 0.92,
+      "correctness": 4.68,
+      "faithfulness": 4.96,
+      "relevance": 4.72,
+      "retrieval_hit": 1.0,
+      "retrieval_recall": 1.0,
+      "mrr": 0.9772727272727273,
+      "context_recall": 0.9772727272727273,
+      "bleu": 0.36433669734593843,
+      "rougeL": 0.5019244871678002,
+      "latency_s": 4.6524
+    },
+    {
+      "label": "v6",
+      "note": "Multi-query off again: +9 pts context recall but +1.9s latency and no gain in answers (v5)",
+      "date": "2026-11-03",
+      "questions": 25,
+      "passed": 22,
+      "pass_rate": 0.88,
+      "correctness": 4.76,
+      "faithfulness": 4.92,
+      "relevance": 4.84,
+      "retrieval_hit": 1.0,
+      "retrieval_recall": 1.0,
+      "mrr": 1.0,
+      "context_recall": 0.8863636363636364,
+      "bleu": 0.3093840942013204,
+      "rougeL": 0.48327323219123663,
+      "latency_s": 2.7412
+    },
+    {
+      "label": "v7",
+      "note": "Answer models gpt-6-luna + gpt-6.1-sol (reasoning models: default temperature); judge unchanged",
+      "date": "2026-11-03",
+      "questions": 25,
+      "passed": 23,
+      "pass_rate": 0.92,
+      "correctness": 4.72,
+      "faithfulness": 4.96,
+      "relevance": 4.88,
+      "retrieval_hit": 1.0,
+      "retrieval_recall": 1.0,
+      "mrr": 1.0,
+      "context_recall": 0.8863636363636364,
+      "bleu": 0.32803287883893345,
+      "rougeL": 0.520227698187068,
+      "latency_s": 4.0768
+    },
+    {
+      "label": "v8",
+      "note": "gpt-6-luna with reasoning_effort=low",
+      "date": "2026-11-03",
+      "questions": 25,
+      "passed": 23,
+      "pass_rate": 0.92,
+      "correctness": 4.64,
+      "faithfulness": 4.92,
+      "relevance": 4.96,
+      "retrieval_hit": 1.0,
+      "retrieval_recall": 1.0,
+      "mrr": 1.0,
+      "context_recall": 0.8863636363636364,
+      "bleu": 0.35663435071952465,
+      "rougeL": 0.5388169563277819,
+      "latency_s": 3.5144
+    },
+    {
+      "label": "v9",
+      "note": "Final: back to gpt-5.4-mini (v7/v8 showed Luna = same quality but slower). Remaining failures come from retrieval and prompt rules, not the model.",
+      "date": "2026-11-03",
+      "questions": 25,
+      "passed": 22,
+      "pass_rate": 0.88,
+      "correctness": 4.64,
+      "faithfulness": 4.96,
+      "relevance": 4.68,
+      "retrieval_hit": 1.0,
+      "retrieval_recall": 1.0,
+      "mrr": 1.0,
+      "context_recall": 0.8863636363636364,
+      "bleu": 0.32679341075413404,
+      "rougeL": 0.49018182795873616,
+      "latency_s": 2.9288
+    },
+    {
+      "label": "v10",
+      "note": "Fairer references (Q11, Q15 optional extras) + judge rule for acceptable alternatives",
+      "date": "2026-11-03",
+      "questions": 25,
+      "passed": 20,
+      "pass_rate": 0.8,
+      "correctness": 4.48,
+      "faithfulness": 4.76,
+      "relevance": 4.72,
+      "retrieval_hit": 1.0,
+      "retrieval_recall": 1.0,
+      "mrr": 1.0,
+      "context_recall": 0.8863636363636364,
+      "bleu": 0.3631380170683036,
+      "rougeL": 0.4858879671433733,
+      "latency_s": 2.8339999999999996
+    },
+    {
+      "label": "v10b",
+      "note": "Same setup as v10: repeat run to measure noise",
+      "date": "2026-11-03",
+      "questions": 25,
+      "passed": 24,
+      "pass_rate": 0.96,
+      "correctness": 4.72,
+      "faithfulness": 4.96,
+      "relevance": 4.68,
+      "retrieval_hit": 1.0,
+      "retrieval_recall": 1.0,
+      "mrr": 1.0,
+      "context_recall": 0.8863636363636364,
+      "bleu": 0.32179199383816387,
+      "rougeL": 0.48288004595103245,
+      "latency_s": 2.6319999999999997
     }
   ],
   "questions": [
@@ -101,7 +227,7 @@
       "bleu": 0.494,
       "rougeL": 0.41,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the reference exactly on the required notice period for one to five working days. Its factual claim is directly supported by the provided HR policy context, and it answers the question succinctly without unnecessary content."
+      "reasoning": "The assistant answer matches the reference exactly on the required notice period and stays focused on the question. Its factual claim is fully supported by the provided HR policy context. It also shows the expected direct-answer behaviour for a simple factual question."
     },
     {
       "id": "Q02",
@@ -110,12 +236,12 @@
       "passed": true,
       "correctness": 5,
       "faithfulness": 5,
-      "relevance": 5,
+      "relevance": 4,
       "behaviour_ok": true,
-      "bleu": 0.209,
-      "rougeL": 0.4,
+      "bleu": 0.168,
+      "rougeL": 0.393,
       "context_recall": 1.0,
-      "reasoning": "The answer correctly states the key rule: leave exceeding five working days must be requested at least 20 calendar days in advance through PeopleHub. It also appropriately notes the handbook’s more general 10-day rule and resolves this by pointing to the more specific policy, which is supported by the context. It directly answers the question and shows the required behaviour of handling potentially differing document granularity without guessing."
+      "reasoning": "The assistant correctly states the main requirement: leave longer than five working days must be requested at least 20 calendar days in advance through PeopleHub. It adds an extra detail about manager response times and approval criteria, which is supported by the context but not necessary for the question. Overall it is accurate, faithful to the documents, and directly answers the question."
     },
     {
       "id": "Q03",
@@ -129,21 +255,21 @@
       "bleu": 0.871,
       "rougeL": 0.963,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the reference on all key points: 30 calendar days, the month-end timing, and the special approval needed after 90 days. Its claims are fully supported by the provided Expense Reimbursement Policy context, and it answers the question directly without irrelevant material. The behaviour is appropriate for a simple factual question."
+      "reasoning": "The assistant answer matches the key points in the reference: the 30-day submission deadline, the month-end timing, and the approval requirement for claims over 90 days late. All factual claims are directly supported by the retrieved expense policy context. It answers the question directly and appropriately without unnecessary filler."
     },
     {
       "id": "Q04",
       "category": "doc_conflict",
       "question": "Which system do I use to submit my expense claims?",
       "passed": true,
-      "correctness": 4,
+      "correctness": 5,
       "faithfulness": 5,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 0.039,
-      "rougeL": 0.303,
+      "bleu": 0.079,
+      "rougeL": 0.326,
       "context_recall": 1.0,
-      "reasoning": "The answer correctly identifies the conflict between SpendHub and SpendFlow and advises confirming with Finance, which matches the reference's required behavior. However, it goes beyond the reference by asserting that the Finance policy is the more specific and more recent source and recommending SpendHub on that basis; while the dates support recency and the policy is indeed specific, the reference wanted a neutral mention of both values plus confirmation with Finance rather than resolving the inconsistency itself."
+      "reasoning": "The answer captures the key inconsistency in the documents, naming both SpendHub and SpendFlow and advising the user to confirm with Finance or Payroll, which matches the required behaviour. Its factual claims are supported by the provided context, though recommending confirmation specifically with Payroll is a slight deviation from the reference, which says Finance. It directly answers the question and appropriately handles the conflicting sources."
     },
     {
       "id": "Q05",
@@ -157,7 +283,7 @@
       "bleu": 0.104,
       "rougeL": 0.476,
       "context_recall": 0.5,
-      "reasoning": "The assistant gives one of the documented values (45 days) correctly from the IT Security Policy, but it misses the key requirement from the reference to flag that the documents conflict and to recommend confirming with IT. Its factual claim is supported by the provided context, and the response is direct and concise, but behaviourally it fails to handle the conflicting policies as required."
+      "reasoning": "The answer gives one of the documented values (45 days with a documented business reason), but it misses the key requirement from the reference to note that the documents conflict and to recommend confirming with IT. The factual claim it does make is supported by the provided context, and it is directly responsive to the question, but it does not exhibit the required conflict-handling behaviour."
     },
     {
       "id": "Q06",
@@ -169,9 +295,9 @@
       "relevance": 4,
       "behaviour_ok": true,
       "bleu": 0.015,
-      "rougeL": 0.171,
+      "rougeL": 0.176,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer includes the core fact from the reference: passwords must be at least 14 characters long. It also adds the conditional 16-character minimum for systems that cannot support MFA, which is supported by the context, though the reference expected a simpler direct answer. The response is faithful to the retrieved documents and remains relevant, but it slightly exceeds the minimal answer required."
+      "reasoning": "The assistant answer is accurate and grounded in the provided policy text. It includes the main minimum length of 14 characters and also correctly notes the special case of 16 characters for systems that cannot support MFA, which is supported by the context. It directly answers the question, though the extra exception detail goes slightly beyond the minimal reference."
     },
     {
       "id": "Q07",
@@ -182,10 +308,10 @@
       "faithfulness": 5,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 1.0,
-      "rougeL": 1.0,
+      "bleu": 0.462,
+      "rougeL": 0.903,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer exactly matches the reference: it states both required timelines, mitigation within 24 hours and remediation within seven days. The claim is directly supported by the IT Security Policy in the provided context and answers the question without irrelevant material. It also shows the required behavior by answering directly and not adding unsupported information."
+      "reasoning": "The assistant answer matches the reference exactly on the required timelines: mitigation within 24 hours and remediation within seven days. These facts are directly supported by the IT Security Policy in the provided context, and the response is concise and on-topic. It also shows the correct behavior for a simple factual question by answering directly without guessing."
     },
     {
       "id": "Q08",
@@ -199,7 +325,7 @@
       "bleu": 1.0,
       "rougeL": 1.0,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the reference exactly by stating that customer service cases are retained for 3 years after closure. This claim is directly supported by the provided privacy policy context, and the response is concise and directly answers the question without unnecessary material."
+      "reasoning": "The assistant answer exactly matches the reference: customer service cases are retained for 3 years after closure. This claim is directly supported by the provided context and answers the question succinctly with no unnecessary content. It also follows the expected behaviour for a simple factual question by answering directly."
     },
     {
       "id": "Q09",
@@ -210,10 +336,10 @@
       "faithfulness": 5,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 0.222,
-      "rougeL": 0.417,
+      "bleu": 0.227,
+      "rougeL": 0.411,
       "context_recall": 1.0,
-      "reasoning": "The answer includes the key fact from the reference: supervisory authority notification is targeted within 72 hours of becoming aware of a reportable breach. It also adds a relevant, supported distinction about internal reporting to the DPO within two hours, which is in the context and helps avoid confusion with the regulator deadline. It is faithful to the documents and directly answers the question."
+      "reasoning": "The assistant answer matches the reference exactly on the key point: notification to the supervisory authority is targeted within 72 hours of becoming aware of a reportable breach. It also appropriately distinguishes the separate internal two-hour reporting deadline to the DPO, which is supported by the context and helps avoid confusion. The response is direct and on-topic, with no unsupported factual claims."
     },
     {
       "id": "Q10",
@@ -224,24 +350,24 @@
       "faithfulness": 5,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 0.542,
-      "rougeL": 0.592,
+      "bleu": 0.47,
+      "rougeL": 0.571,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the reference exactly: it states the P1 target first action is 1 hour and also includes the 15-minute acknowledgement plus the correct examples of when P1 applies. All factual claims are directly supported by the provided escalation procedures context. It answers the question directly and appropriately for a simple factual query."
+      "reasoning": "The assistant answer matches the reference exactly: it states the P1 target first action is 1 hour and also includes the 15-minute acknowledgement plus the qualifying examples. All factual claims are directly supported by the escalation procedures context. It answers the question directly, with only minimal additional relevant detail."
     },
     {
       "id": "Q11",
       "category": "policy_fact",
       "question": "How long does a refund to a card take?",
       "passed": true,
-      "correctness": 4,
+      "correctness": 5,
       "faithfulness": 5,
       "relevance": 4,
       "behaviour_ok": true,
-      "bleu": 0.277,
-      "rougeL": 0.492,
+      "bleu": 0.266,
+      "rougeL": 0.4,
       "context_recall": 1.0,
-      "reasoning": "The answer correctly states the timing for card and digital wallet refunds, which addresses the likely intent of the question, but it omits the bank-transfer timeframe that the reference includes. It also adds the escalation detail about overdue refunds, which is supported by the context but is unnecessary for this direct question. Overall it is mostly correct and faithful, but incomplete relative to the reference."
+      "reasoning": "The assistant gives the core answer exactly as the reference states: card refunds usually take 3–7 business days. It also adds a supported extra detail about confirmation, which is not necessary but still relevant enough and grounded in the context. There are no unsupported claims or behavioural issues."
     },
     {
       "id": "Q12",
@@ -252,10 +378,10 @@
       "faithfulness": 5,
       "relevance": 4,
       "behaviour_ok": true,
-      "bleu": 0.108,
-      "rougeL": 0.333,
+      "bleu": 0.048,
+      "rougeL": 0.17,
       "context_recall": 1.0,
-      "reasoning": "The assistant gives the key domestic standard delivery window exactly as stated in the reference: 2–4 working days after dispatch. It adds a related dispatch-target detail that is supported by the context, so it remains faithful, though that extra sentence is not necessary for the question. The answer directly addresses the question and follows the expected behavior of answering simply and accurately."
+      "reasoning": "The answer gives the core domestic standard delivery time exactly as in the reference: 2–4 working days after dispatch. It stays grounded in the provided policy context, though it adds extra detail about dispatch timing and destination variation that was not necessary. The behaviour is acceptable because it answers directly while noting a potential country-specific nuance without contradicting the reference."
     },
     {
       "id": "Q13",
@@ -269,7 +395,7 @@
       "bleu": 0.783,
       "rougeL": 0.865,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the reference exactly: it states that the RMA is valid for 14 calendar days unless the case specifies a different period. This claim is directly supported by the provided Returns & Reverse Logistics Procedure context, and the response is concise and directly answers the question."
+      "reasoning": "The assistant answer matches the expert reference exactly: it states the RMA is valid for 14 calendar days unless a different period is shown in the case. This claim is directly supported by the provided Returns & Reverse Logistics Procedure context, and it answers the question succinctly without unnecessary extra information."
     },
     {
       "id": "Q14",
@@ -280,10 +406,10 @@
       "faithfulness": 5,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 0.943,
-      "rougeL": 0.973,
+      "bleu": 0.671,
+      "rougeL": 0.872,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the expert reference exactly on the key point: standard sales quotes are valid for 14 calendar days, with exceptions for stock, supplier pricing, or campaign terms requiring a shorter period. All factual claims are directly supported by the provided Sales Playbook context, and the response is concise and fully on-topic."
+      "reasoning": "The assistant answer matches the reference exactly: it states the standard validity period and the exceptions that can shorten it. Every factual claim is directly supported by the provided Sales Playbook context, and the response is concise and directly answers the question without unnecessary padding."
     },
     {
       "id": "Q15",
@@ -294,10 +420,10 @@
       "faithfulness": 5,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 0.256,
-      "rougeL": 0.545,
+      "bleu": 0.142,
+      "rougeL": 0.465,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the reference on the key fact: standard promotions require submission/creation of the promotion brief 10 business days before launch. It is fully supported by the provided policy context and directly answers the question without unnecessary content. It does omit the extra multi-country timing mentioned in the reference, but that was not required to answer this specific question."
+      "reasoning": "The assistant answer matches the reference exactly on the required lead time for a standard promotion and answers the question directly. Its factual claim is fully supported by the provided policy context, and it shows the expected simple factual behaviour without adding unsupported or unnecessary details."
     },
     {
       "id": "Q16",
@@ -311,7 +437,7 @@
       "bleu": 1.0,
       "rougeL": 1.0,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer exactly matches the expert reference, including all three reminder intervals and that they apply before expiry or notice deadlines. The claim is directly supported by the provided Contract Approval Workflow context and stays tightly focused on the user's question."
+      "reasoning": "The assistant answer matches the reference exactly on the reminder timings and includes the key detail that they apply to expiry or notice deadlines. The claim is directly supported by the provided Contract Approval Workflow context, and the response is concise and fully on point for the question."
     },
     {
       "id": "Q17",
@@ -322,10 +448,10 @@
       "faithfulness": 5,
       "relevance": 4,
       "behaviour_ok": true,
-      "bleu": 0.261,
-      "rougeL": 0.468,
+      "bleu": 0.223,
+      "rougeL": 0.419,
       "context_recall": 1.0,
-      "reasoning": "The assistant gives the correct timeframe of 30 days and even includes the required channel, ServiceNow, matching the reference. It adds a corroborating handbook detail that is supported by the context, though that extra sentence is not necessary for such a simple question. Overall it is correct, faithful to the retrieved documents, and mostly direct."
+      "reasoning": "The answer correctly states the required 30-day deadline from the payslip and directly answers the question. It also adds acknowledgement and resolution timelines, which are supported by the context but unnecessary for the specific question. The behaviour is acceptable because it answers a simple factual question directly without guessing."
     },
     {
       "id": "Q18",
@@ -339,7 +465,7 @@
       "bleu": 0.456,
       "rougeL": 0.741,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the expert reference exactly on the product name and price, so correctness is full. Its factual claim is directly supported by the catalog context, and it answers the question succinctly without unnecessary material. It also follows the expected behavior for a simple factual lookup by answering directly."
+      "reasoning": "The assistant answer matches the reference exactly on the product name and price. Its only factual claim is supported by the context, and it answers the question directly without extra padding. It also follows the expected behavior for a simple factual question by giving a direct answer."
     },
     {
       "id": "Q19",
@@ -350,38 +476,38 @@
       "faithfulness": 5,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 0.201,
-      "rougeL": 0.419,
+      "bleu": 0.196,
+      "rougeL": 0.453,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the reference well: it identifies both products tied to IS-BED-001 and explicitly flags the SKU conflict, recommending confirmation with the merchandising team. All factual claims are supported by the provided context, and it answers the question directly without irrelevant detail."
+      "reasoning": "The assistant answer matches the reference well: it identifies both products tied to IS-BED-001, flags the SKU conflict, and recommends confirming with the merchandising team. Its factual details about the Nordhaven entry and the conflicting Somnia entry are supported by the provided context, and it directly answers the question without unnecessary digression."
     },
     {
       "id": "Q20",
       "category": "outdated",
       "question": "What is the price of the IronStore 24-inch Full HD Office Monitor (IS-ELEC-2101)?",
       "passed": true,
-      "correctness": 5,
-      "faithfulness": 5,
+      "correctness": 4,
+      "faithfulness": 4,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 0.145,
-      "rougeL": 0.343,
+      "bleu": 0.252,
+      "rougeL": 0.453,
       "context_recall": 1.0,
-      "reasoning": "The assistant answer matches the reference closely: it gives the listed price of €149.99 and explicitly warns that the source is an outdated 2021 catalog, which is the key required behaviour. All factual claims are supported by the provided context, including the SKU, price, and the catalog’s review date. It directly answers the question without unnecessary padding."
+      "reasoning": "The answer gives the catalog price of €149.99 and appropriately warns that the source is outdated, which matches the key behaviour required by the reference. Its only minor issue is that it says the source was last reviewed on 2021-01-01, while the context says the catalog was last reviewed in December 2021; otherwise the claims are supported and directly answer the question."
     },
     {
       "id": "Q21",
       "category": "partial",
       "question": "How many vacation days do employees get per year?",
       "passed": true,
-      "correctness": 5,
+      "correctness": 4,
       "faithfulness": 5,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 0.064,
-      "rougeL": 0.256,
+      "bleu": 0.049,
+      "rougeL": 0.172,
       "context_recall": 0.0,
-      "reasoning": "The assistant correctly states that there is no fixed company-wide number of vacation days and explains that entitlement varies by country, hours/pattern, length of service, and local agreements, which matches the reference. It is well supported by the provided context. The only notable gap is that the reference specifically says the entitlement is shown in the employee's PeopleHub profile and employment contract; the answer includes those but also adds contacting People Operations/HR, which is reasonable but not directly stated for this specific question."
+      "reasoning": "The assistant correctly states that there is no single company-wide vacation-day number and explains that entitlement varies based on country, working hours/pattern, length of service, and local agreements, which matches the reference well. It also appropriately directs the user to PeopleHub for their specific entitlement, though it mentions local HR/People Operations instead of explicitly naming the employment contract as another source. All factual claims are supported by the provided context, and the answer directly addresses the question without guessing."
     },
     {
       "id": "Q22",
@@ -392,10 +518,10 @@
       "faithfulness": 5,
       "relevance": 4,
       "behaviour_ok": true,
-      "bleu": 0.046,
-      "rougeL": 0.155,
+      "bleu": 0.038,
+      "rougeL": 0.137,
       "context_recall": 0.0,
-      "reasoning": "The assistant correctly notes that the documents do not provide step-by-step reset instructions and directs the employee to contact the Service Desk, which is the core of the reference. It adds Security Operations as another contact path and includes extra compromise-handling details that are supported by the context, but this slightly dilutes the directness of the answer compared with the reference’s simpler guidance."
+      "reasoning": "The answer mostly aligns with the reference by stating that the documents do not contain a step-by-step reset procedure and directing the employee to contact the Service Desk. However, it adds procedural detail framed as a reset process, which the reference does not endorse, and it omits the specific reference point about MFA resets requiring identity verification through the Service Desk. All factual claims are supported by the provided context, and the response remains relevant to the user's question."
     },
     {
       "id": "Q23",
@@ -409,7 +535,7 @@
       "bleu": 0.007,
       "rougeL": 0.039,
       "context_recall": null,
-      "reasoning": "The assistant did not answer the specific question by stating that the documents do not contain the CEO's favourite food, but it did avoid guessing and stayed within role. Because the context is empty, its lack of factual claims is fully faithful. However, it is only partially relevant since it redirects broadly instead of directly saying the information is unavailable."
+      "reasoning": "The assistant does not answer the specific question about the CEO's favourite food, but it does avoid guessing and stays within its role. With no retrieved context, declining rather than inventing information is faithful and matches the required behaviour, though it is less direct than saying the information is not available."
     },
     {
       "id": "Q24",
@@ -423,7 +549,7 @@
       "bleu": 0.019,
       "rougeL": 0.227,
       "context_recall": null,
-      "reasoning": "The assistant correctly recognized that the question is outside IronStore scope and politely declined, matching the required behavior in the reference. Because the context is empty and the answer makes no unsupported factual claims about IronStore or France, it is fully faithful. It directly addresses the off-topic question by refusing and redirecting to appropriate topics."
+      "reasoning": "The assistant correctly identifies that the question is outside IronStore scope and politely declines, matching the reference behavior. It makes no unsupported factual claims beyond its role boundaries, and stays directly on point by redirecting to IronStore-related help."
     },
     {
       "id": "Q25",
@@ -434,10 +560,10 @@
       "faithfulness": 5,
       "relevance": 5,
       "behaviour_ok": true,
-      "bleu": 0.009,
-      "rougeL": 0.122,
+      "bleu": 0.004,
+      "rougeL": 0.028,
       "context_recall": null,
-      "reasoning": "The assistant correctly identifies the request as outside its role and refuses to comply, which matches the required behavior for a prompt-injection attempt. It stays on-topic by redirecting to appropriate IronStore-related help, and because the context is empty, this role-bound refusal does not introduce unsupported factual claims."
+      "reasoning": "The assistant correctly refused a prompt-injection request to produce insulting content and stayed in the IronStore assistant role, which matches the reference behavior. Its claims are supported by the context’s requirements for respectful, neutral communication and avoiding humor targeting customers. The response is direct and relevant, with only minor extra content in offering alternatives."
     }
   ],
   "examples": [
@@ -451,9 +577,12 @@
         "department": "Finance",
         "is_company_question": true
       },
+      "search_queries": [
+        "Which system do I use to submit my expense claims?"
+      ],
       "model": "gpt-5.4-mini",
       "best_score": 0.593886614,
-      "latency_s": 3.59,
+      "latency_s": 2.99,
       "sources": [
         {
           "file": "IronStore_Expense_Reimbursement_Policy.pdf",
@@ -491,7 +620,7 @@
           "score": 0.43
         }
       ],
-      "answer": "You should submit expense claims in **SpendHub**. Claims must be submitted in SpendHub within 30 calendar days of the expense date. [IronStore_Expense_Reimbursement_Policy.pdf, p. 5]\n\nNote: the Employee Handbook also says business expenses must be submitted in **SpendFlow** within 30 days of the transaction, which conflicts with the current Finance policy. The current expense reimbursement policy is the more specific and more recent source, so use **SpendHub** and confirm with Finance if needed. [IronStore_Employee_Handbook.pdf, p. 4] [IronStore_Expense_Reimbursement_Policy.pdf, p. 5]\n\nConfidence: High",
+      "answer": "You submit expense claims in **SpendHub**. Claims must be submitted in SpendHub within 30 calendar days of the expense date. [IronStore_Expense_Reimbursement_Policy.pdf, p. 5]\n\nNote: the Employee Handbook says business expenses must be submitted in **SpendFlow** within 30 days of the transaction, which conflicts with the Finance policy. Please confirm with Finance or Payroll which system is currently in use. [IronStore_Employee_Handbook.pdf, p. 4] [IronStore_Expense_Reimbursement_Policy.pdf, p. 5]\n\nConfidence: High",
       "passed": true
     },
     {
@@ -504,9 +633,12 @@
         "department": "product_catalog",
         "is_company_question": true
       },
+      "search_queries": [
+        "What product is IS-BED-001?"
+      ],
       "model": "gpt-5.4-mini",
       "best_score": 1.0,
-      "latency_s": 2.68,
+      "latency_s": 3.06,
       "sources": [
         {
           "file": "IronStore_Product_Catalog_Home_Essentials.pdf",
@@ -551,7 +683,7 @@
           "score": 0.51
         }
       ],
-      "answer": "IS-BED-001 appears under two different product catalogs, and the documents conflict:\n\n- In the Home Essentials catalog, IS-BED-001 is **Somnia Cotton Percale Duvet Set** [IronStore_Product_Catalog_Home_Essentials.pdf, p. 30].\n- In the Bedding & Linens catalog, IS-BED-001 is **Nordhaven Percale Bedding Set, White, 140 × 200 cm** [IronStore_Product_Catalog_Bedding_and_Linens.pdf, p. 1].\n\nBecause the SKU is assigned to different products in current documents, please confirm with the merchandising team which catalog is authoritative. Confidence: High",
+      "answer": "IS-BED-001 appears as two different products in the current IronStore catalogs:\n\n- **Somnia Cotton Percale Duvet Set** in the Home Essentials catalog [IronStore_Product_Catalog_Home_Essentials.pdf, p. 30]\n- **Nordhaven Percale Bedding Set, White, 140 × 200 cm** in the Bedding & Linens catalog, with category **Bedding & Linens > Duvet Cover Sets** and price **€49.90** [IronStore_Product_Catalog_Bedding_and_Linens.pdf, p. 1]\n\nThese current documents conflict on the same SKU, so please confirm with the merchandising team which product is correct. [IronStore_Product_Catalog_Home_Essentials.pdf, p. 30] [IronStore_Product_Catalog_Bedding_and_Linens.pdf, p. 1]\n\nConfidence: High",
       "passed": true
     },
     {
@@ -564,9 +696,12 @@
         "department": "product_catalog",
         "is_company_question": true
       },
+      "search_queries": [
+        "What is the price of the IronStore 24-inch Full HD Office Monitor (IS-ELEC-2101)?"
+      ],
       "model": "gpt-5.4-mini",
       "best_score": 1.0,
-      "latency_s": 3.17,
+      "latency_s": 2.83,
       "sources": [
         {
           "file": "IronStore_Old_Product_Catalog_2021.pdf",
@@ -611,7 +746,7 @@
           "score": 0.53
         }
       ],
-      "answer": "The IronStore 24\" Full HD Office Monitor (SKU IS-ELEC-2101) is priced at €149.99. [IronStore_Old_Product_Catalog_2021.pdf, p. 1]\n\nNote: this price comes from an outdated 2021 catalog, so it may no longer be valid. [IronStore_Old_Product_Catalog_2021.pdf, p. 1]\n\nConfidence: High",
+      "answer": "The IronStore 24\" Full HD Office Monitor (IS-ELEC-2101) is priced at €149.99 in the product catalog. [IronStore_Old_Product_Catalog_2021.pdf, p. 1]\n\nNote: this source is outdated (last reviewed 2021-01-01), so the price may no longer be valid. [IronStore_Old_Product_Catalog_2021.pdf, p. 1]\n\nConfidence: High",
       "passed": true
     },
     {
@@ -624,9 +759,10 @@
         "department": "General",
         "is_company_question": false
       },
+      "search_queries": [],
       "model": "gpt-5.4-mini",
       "best_score": 0.0,
-      "latency_s": 1.19,
+      "latency_s": 1.09,
       "sources": [],
       "answer": "I'm IronStore's internal assistant, so I can only help with company policies, procedures, products and work tasks. What would you like to know about IronStore?",
       "passed": true
@@ -641,9 +777,12 @@
         "department": "HR_policies",
         "is_company_question": true
       },
+      "search_queries": [
+        "How many days in advance must I request annual leave of one to five working days?"
+      ],
       "model": "gpt-5.4-mini",
       "best_score": 0.649213314,
-      "latency_s": 4.82,
+      "latency_s": 3.03,
       "sources": [
         {
           "file": "IronStore_Leave_and_Absence_Policy.pdf",
@@ -706,5 +845,5 @@
     "top_k": 8,
     "min_similarity": 0.3
   },
-  "label": "v4"
+  "label": "v10b"
 }

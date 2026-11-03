@@ -107,7 +107,8 @@
     if (r.is_company_question === false && r.department === "General") {
       steps.push("🛑 Not an IronStore question → declined without searching");
     } else {
-      steps.push(`🔎 <b>Search:</b> ${meta.sources.length} passage${meta.sources.length === 1 ? "" : "s"} from ${docs} document${docs === 1 ? "" : "s"} (best relevance ${best.toFixed(2)})`);
+      const nq = (meta.search_queries || []).length;
+      steps.push(`🔎 <b>Search${nq > 1 ? ` (${nq} phrasings)` : ""}:</b> ${meta.sources.length} passage${meta.sources.length === 1 ? "" : "s"} from ${docs} document${docs === 1 ? "" : "s"} (best relevance ${best.toFixed(2)})`);
       steps.push(best >= 0.30 ? "🛡️ <b>Guardrail:</b> evidence strong enough ✓" : "🛡️ <b>Guardrail:</b> evidence too weak → no guessing");
       if (meta.model && meta.model !== "-") steps.push(`🧠 <b>Model:</b> ${esc(meta.model)}`);
     }

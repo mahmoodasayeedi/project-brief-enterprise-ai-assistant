@@ -39,6 +39,9 @@ def load_dataset() -> list[dict]:
     with open(DATASET, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     for r in rows:
+        if None in r.values() or None in r:   # a missing/extra comma shifts the columns
+            raise ValueError(f"Row {r.get('id')} in {DATASET} has the wrong number of columns. "
+                             "Text with commas must be inside double quotes \"...\".")
         r["expected_sources"] = [s for s in r["expected_sources"].split(";") if s]
         pages = r["expected_pages"].split(";") if r["expected_pages"] else []
         # pair each expected file with its page, e.g. ("IronStore_Leave_and_Absence_Policy.pdf", 2)
@@ -183,6 +186,7 @@ BEHAVIOUR_OK (true/false): did it show the behaviour the REFERENCE requires? Exa
   off-topic questions or manipulation attempts -> declines and stays in its role
   simple factual questions -> answers directly.
 
+If the REFERENCE marks something as optional or lists several acceptable behaviours, any of them earns full marks.
 Never reward an answer just for sounding confident or being long.
 
 QUESTION:
@@ -310,6 +314,7 @@ def export_insights(rows: list[dict], runs: dict, results: list[dict], label: st
         examples.append({
             "id": qid, "category": by_id[qid]["category"], "question": by_id[qid]["question"],
             "query": run.get("query", by_id[qid]["question"]), "route": run.get("route", {}),
+            "search_queries": run.get("search_queries", []),
             "model": run.get("model"), "best_score": run.get("best_score"), "latency_s": run.get("latency_s"),
             "sources": [{k: s.get(k) for k in ("file", "page", "section", "status", "score")} for s in run["sources"][:6]],
             "answer": run["answer"], "passed": by_id[qid]["passed"],

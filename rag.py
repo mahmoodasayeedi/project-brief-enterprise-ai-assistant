@@ -41,7 +41,17 @@ class Route(BaseModel):
                     "False ONLY for small talk or general knowledge clearly unrelated to IronStore "
                     "(e.g. world capitals, recipes, celebrities).")
 
+class QueryVariants(BaseModel):
+    """Different phrasings of the question, used for multi-query retrieval."""
+    queries: list[str] = Field(description="Alternative search queries, each a different phrasing")
 
+
+MULTI_QUERY_PROMPT = """Rewrite the question below as {n} different search queries for IronStore's internal policies
+and product catalogs. Use different wording and the formal vocabulary a company document would use
+(for example "remote work arrangement" instead of "working from home"). Keep product codes and numbers exactly as written.
+Return only the queries.
+
+Question: {query}"""
 SYSTEM_PROMPT = """You are the IronStore Enterprise AI Assistant, helping employees with internal company knowledge.
 
 RULES (follow strictly):
@@ -78,10 +88,18 @@ class IronStoreAssistant:
     def __init__(self):
         self.embeddings = OpenAIEmbeddings(model=config.EMBEDDING_MODEL, dimensions=config.EMBEDDING_DIMENSIONS)
         self.index = Pinecone().Index(config.PINECONE_INDEX)
-        self.cheap = ChatOpenAI(model=config.CHEAP_MODEL, temperature=0)
-        self.smart = ChatOpenAI(model=config.SMART_MODEL, temperature=0)
-        self.router = self.cheap.with_structured_output(Route)
+        # GPT-6 reasoning models: no temperature 0, and "low" thinking for speed.
+        # Older models (e.g. gpt-5.4-mini) keep temperature 0.
+        def make_llm(model: str) -> ChatOpenAI:
+            if model.startswith(("gpt-6", "gpt-5.6")):
+                return ChatOpenAI(model=model, reasoning_effort="low")
+            return ChatOpenAI(model=model, temperature=0)
 
+        self.cheap = make_llm(config.CHEAP_MODEL)
+        self.smart = make_llm(config.SMART_MODEL)
+        
+        self.router = self.cheap.with_structured_output(Route)
+        self.query_writer = self.cheap.with_structured_output(QueryVariants)
     # -- 1. follow-up questions -------------------------------------------------
     def standalone_question(self, question: str, history: list[dict]) -> str:
         if not history:
@@ -92,36 +110,52 @@ class IronStoreAssistant:
                   f"Conversation:\n{convo}\n\nLast question: {question}")
         return self.cheap.invoke(prompt).content.strip()
 
+    def expand_query(self, query: str) -> list[str]:
+        """Multi-query: the original question + a few rephrasings (or just the question if turned off)."""
+        if not config.MULTI_QUERY:
+            return [query]
+        try:
+            out = self.query_writer.invoke(MULTI_QUERY_PROMPT.format(n=config.MULTI_QUERY_N, query=query))
+            variants = [q.strip() for q in out.queries if q.strip()][: config.MULTI_QUERY_N]
+        except Exception:          # if rephrasing fails, still answer with the original question
+            variants = []
+        return [query] + [v for v in variants if v.lower() != query.lower()]
+
     # -- 3. retrieval -------------------------------------------------------------
     def retrieve(self, query: str, department: str):
-        qvec = self.embeddings.embed_query(query)  # turn the question into a "meaning address" once
+        queries = self.expand_query(query)
+        vectors = self.embeddings.embed_documents(queries)   # one embedding call for all phrasings
 
         def search(flt=None):
-            res = self.index.query(vector=qvec, top_k=20, include_metadata=True, filter=flt)
-            out = []
-            for m in res.matches:
-                md = dict(m.metadata)
-                text = md.pop("text", "")
-                out.append((Document(page_content=text, metadata=md), m.score))
-            return out
-                # Exact SKU lookup (keyword search). An exact match counts as 100% relevant
+            """Search with EVERY phrasing; keep each chunk once, with its best score."""
+            best = {}
+            for vec in vectors:
+                res = self.index.query(vector=vec, top_k=20, include_metadata=True, filter=flt)
+                for m in res.matches:
+                    md = dict(m.metadata)
+                    text = md.pop("text", "")
+                    if text not in best or m.score > best[text][1]:
+                        best[text] = (Document(page_content=text, metadata=md), m.score)
+            return sorted(best.values(), key=lambda x: x[1], reverse=True)
+
+        # Exact SKU lookup (keyword search). An exact match counts as 100% relevant
         skus = sorted(set(re.findall(SKU_RE, query.upper())))
         sku_hits = [(d, 1.0) for d, s in search({"skus": {"$in": skus}})] if skus else []
+
         results = []
         if department in DEPARTMENTS:  # department routing first (RAG routing!)
             results = search({"department": {"$eq": department}})
-            # Also search ALL departments, so the same topic in another department
-            # (e.g. the Employee Handbook vs the Expense Policy) is not missed.
+            # Also search ALL departments, so the same topic in another department is not missed
             seen = {d.page_content for d, _ in results}
             results += [(d, s) for d, s in search() if d.page_content not in seen]
-            results.sort(key=lambda x: x[1], reverse=True)   # best matches first
+            results.sort(key=lambda x: x[1], reverse=True)
         if not results or results[0][1] < config.MIN_SIMILARITY + 0.1:
             results = search()  # fall back to all departments
-        
+
         seen = {d.page_content for d, _ in sku_hits}
         results = sku_hits + [(d, s) for d, s in results if d.page_content not in seen]
 
-                # DIVERSITY: keep at most 2 chunks per document, so more DIFFERENT documents get a seat
+        # DIVERSITY: keep at most 2 chunks per document, so more DIFFERENT documents get a seat
         per_doc, diverse = {}, []
         for d, s in results:
             src = d.metadata.get("source")
@@ -134,7 +168,7 @@ class IronStoreAssistant:
         current = [(d, s) for d, s in results if d.metadata.get("status") == "current"][: config.TOP_K]
         outdated = [(d, s) for d, s in results if d.metadata.get("status") == "outdated"][:2]
         hits = sorted(current + outdated, key=lambda x: x[1], reverse=True)
-        return hits
+        return hits, queries
 
     @staticmethod
     def format_context(hits) -> str:
@@ -158,7 +192,7 @@ class IronStoreAssistant:
         query = self.standalone_question(question, history)
         route = self.router.invoke(query)
         meta = {"type": "meta", "route": route.model_dump(), "query": query,
-                "model": config.CHEAP_MODEL, "sources": [], "best_score": 0.0,"contexts": []}
+                "model": config.CHEAP_MODEL, "sources": [], "best_score": 0.0,"contexts": [],"search_queries": []}
 
         if not route.is_company_question and route.department == "General":
             yield meta
@@ -167,7 +201,8 @@ class IronStoreAssistant:
                                             "What would you like to know about IronStore?"}
             return
 
-        hits = self.retrieve(query, route.department)
+        hits, search_queries = self.retrieve(query, route.department)
+        meta["search_queries"] = search_queries
         best = float(hits[0][1]) if hits else 0.0
         meta["best_score"] = best
 
