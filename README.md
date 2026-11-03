@@ -1,6 +1,6 @@
 # 🏬 IronStore Enterprise AI Assistant
 
-🔗 **Live demo:** https://ironstore-assistant.vercel.app
+🔗 **Live demo:** https://ironstore-assistant.vercel.app · 🧭 **Under the hood:** https://ironstore-assistant.vercel.app/insights
 
 An AI-powered internal assistant that helps IronStore employees find company knowledge through natural language.
 It answers questions about **policies, procedures and products** using **only** IronStore's internal documents.
@@ -34,6 +34,8 @@ build a frontend app connected to it, and deploy.
 | **Bonus:** API + tests | ✅ | FastAPI (normal + streaming endpoints), `pytest` tests, Swagger UI |
 | **Bonus:** frontend app | ✅ | HTML/JavaScript chat with live streaming |
 | **Bonus:** deployment | ✅ | Vercel |
+| Evaluation system | ✅ | Golden dataset (25 questions), retrieval metrics, BLEU/ROUGE baseline, LLM-as-a-judge: **96% pass rate, 5.00/5 faithfulness** |
+| "Under the hood" page | ✅ | Interactive RAG flow with real data + evaluation dashboard (`/insights`) |
 
 ---
 
@@ -57,15 +59,19 @@ build a frontend app connected to it, and deploy.
 ```
 ├── documents/                    # Company PDFs (provided as documents.zip; the unzipped folder is not committed)
 ├── public/files/                 # Copies of the PDFs, served so answers can link to them
-├── templates/index.html          # Chat interface (streaming, source links)
+├── templates/index.html          # Chat interface (streaming, source links, "How I found this")
+├── templates/insights.html       # "Under the hood" page: RAG journey + evaluation dashboard
 ├── 01_data_exploration.ipynb     # Step 1: inspection of the documents
 ├── config.py                     # All settings (models, chunk size, thresholds, index name)
 ├── ingest.py                     # Load → clean → metadata → duplicates/outdated → chunk → embed → Pinecone
 ├── rag.py                        # Routing → retrieval → guardrails → streamed answer generation
 ├── app.py                        # FastAPI app: chat page, API endpoints, PDF files
 ├── test_api.py                   # API tests (pytest)
-├── evaluate.py                   # Answer-quality evaluation
-├── eval_questions.csv            # Evaluation questions with expected keywords
+├── evaluate_rag.py               # Evaluation system: retrieval metrics, BLEU/ROUGE, LLM-as-a-judge, dashboard export
+├── eval_dataset.csv              # Golden dataset: 25 questions, reference answers, expected sources & evidence
+├── eval_history.json             # Summary of every evaluated version (v1, v2, ...)
+├── insights.json                 # Scores for the /insights page (no document text)
+├── evaluate.py                   # First, simple keyword evaluation (kept for comparison)
 ├── data_report.md                # Generated data-quality report
 ├── requirements.txt              # Runtime packages (installed by Vercel)
 └── requirements-dev.txt          # Extra packages for local data processing, notebooks and tests
@@ -108,7 +114,8 @@ QUESTION ANSWERING  (app.py + rag.py, deployed on Vercel)
 Browser → FastAPI /api/chat/stream
         → rewrite follow-up questions (uses chat history)
         → ROUTER (cheap model): difficulty, department, on-topic?
-        → hybrid retrieval: exact SKU match + semantic search (department first, then all)
+        → hybrid retrieval: exact SKU match + semantic search (department first + all departments,
+          20 candidates, at most 2 chunks per document)
         → guardrail: low similarity → honest "I couldn't find this"
         → cheap or smart model → answer streamed token by token
         → sources with page, section and PDF link
@@ -202,6 +209,8 @@ Answers appear **token by token**, like ChatGPT. Streaming works end to end:
 | `/api/chat` | POST | Full answer as one JSON (`answer`, `sources`, `route`, `model`) |
 | `/api/chat/stream` | POST | Streamed answer (NDJSON: `meta`, then `token` events) |
 | `/files/<name>.pdf` | GET | Source documents (used by the citation links) |
+| `/insights` | GET | "Under the hood" page: RAG journey + evaluation dashboard |
+| `/api/insights` | GET | Evaluation results used by the page (JSON) |
 | `/docs` | GET | Interactive API documentation (Swagger UI) |
 
 **Request body** (`/api/chat` and `/api/chat/stream`):
@@ -232,20 +241,57 @@ Answers appear **token by token**, like ChatGPT. Streaming works end to end:
 **6/6 passed:** health check, chat page loads, empty questions rejected, answers include sources with page and a working PDF link,
 off-topic questions declined, streaming sends `meta` then `token` events.
 
-### Answer-quality evaluation (`evaluate.py`)
-**Score: 8/8 (100%)**, covering policy procedures, product prices, SKU conflicts and out-of-scope questions.
-Results are saved to `eval_results.csv`.
+### Evaluation system (`evaluate_rag.py`)
+
+**Which metrics fit this project?** We compared the methods from class and chose on purpose:
+
+| Method | Measures | Decision |
+|---|---|---|
+| **BLEU** | n-gram overlap with a reference (made for translation) | ⚠️ Baseline only: correct answers in other words score low |
+| **ROUGE-L** | Longest common word sequence with a reference (made for summaries) | ⚠️ Baseline only: can't see meaning or behaviour |
+| **RAG retrieval metrics** | Hit rate, recall, MRR, page hit, **context recall** (are the key evidence sentences in the text the model read?) | ✅ Shows *where* a failure starts |
+| **LLM-as-a-judge** | `gpt-5.4` grades **correctness**, **faithfulness** (hallucination), **relevance** and **behaviour** with a rubric and structured output | ✅ Main metric |
+
+**Golden dataset (`eval_dataset.csv`):** 25 questions built from real facts in the PDFs, each with a reference answer,
+expected source documents and pages, and evidence sentences. 8 categories: simple facts, procedure, product price,
+SKU conflict, **conflicts between documents**, outdated catalog, partial answers, and refusals (off-topic, unknown,
+prompt injection). A question **passes** when correctness ≥ 4, faithfulness ≥ 4 and the behaviour is right.
+
+**Final result (v4):** **24/25 passed (96%)** · faithfulness **5.00/5** (no hallucination in any answer) ·
+retrieval hit rate 100% · MRR 1.00 · context recall 89%.
+
+**Why word counting isn't enough (proof from our data):** ROUGE-L averaged only **0.51**, and 6 answers the judge
+graded correct scored below 0.30, mostly refusals and partial answers, where the right answer is a *behaviour*,
+not a sentence. Two answers with almost the same ROUGE-L (0.17 vs 0.26) were wrong and correct respectively.
+
+**Measure → fix → measure again:**
+
+| Version | Pass rate | What changed and what we learned |
+|---|---|---|
+| v1 | 84% | Baseline. Retrieval showed **department routing hid a cross-department conflict** (SpendHub vs SpendFlow) |
+| v2 | 88% | Prompt rules: warn when the only source is outdated, compare sources for conflicts. Fixed an unfair test (Q23) |
+| v3 | 80% | **Diversity** in search (20 candidates, max 2 chunks per document) fixed the SpendFlow conflict. The drop came from a **wrong reference answer** (Q10) and an over-eager conflict rule (Q12) |
+| v4 | **96%** | Corrected the Q10 reference answer |
 
 **Lessons learned:**
-- Two tests failed at first. Checking the source documents showed they contain **no fixed number of vacation days**
-  and **no password-reset steps**. The assistant correctly **did not invent** them, so the tests were fixed, not the bot.
-- **Prompt engineering:** the first prompt made the assistant say *"I couldn't find this"* even when it had a partial answer.
-  Separating *no answer* from *partial answer* in the rules made responses clearer.
-- **Exact codes need keyword search:** semantic search alone could not find `IS-BED-001`; adding exact SKU lookup fixed it.
-- **Streaming is end to end:** `streaming=True` on the model is not enough on its own; every layer (LangChain, generator,
-  FastAPI, browser) has to pass the tokens on.
+- **Several metric types together locate the problem:** retrieval metrics showed whether a failure was in *search*,
+  the judge showed whether it was in the *answer*. Page-level hits looked perfect while the right *sentence* was missing,
+  which led us to add context recall.
+- **Re-run everything after every change:** one fix caused a regression elsewhere (v3).
+- **Tests can be wrong too:** two "failures" were wrong or unfair references. We only changed a test after checking
+  the source document, never to hide a real problem.
+- **LLM outputs vary between runs**, even at temperature 0, so small differences need several runs to be trusted.
+- Earlier keyword-based evaluation (`evaluate.py`, 8/8) and its lessons: the documents contain no fixed number of
+  vacation days and no password-reset steps, and the assistant correctly did not invent them.
 
----
+### "Under the hood" page (`/insights`)
+An interactive page that explains the project visually:
+- **Journey of a question:** replay real evaluated answers (or ask live) and see each RAG step with its real data:
+  the router's decision, retrieved pages with relevance, the guardrail score, the chosen model and the cited answer
+- **How the documents were prepared:** the ingestion pipeline and the messy-data findings
+- **Evaluation dashboard:** scores, ROUGE vs judge charts, the v1 → v4 history and the remaining failure with the judge's reasoning
+
+Every chat answer also has a **"🧭 How I found this"** panel with the same steps for that answer.
 
 ## ▶️ 10. Run locally
 
@@ -272,9 +318,9 @@ python ingest.py
 # 6. Start the app → http://127.0.0.1:8000   (API docs: http://127.0.0.1:8000/docs)
 uvicorn app:app --reload
 
-# 7. Test
+# 7. Test and evaluate
 pytest -v
-python evaluate.py
+python evaluate_rag.py --rerun --label v5 --note "what changed"   # then open /insights
 ```
 
 ## 🚀 11. Deployment (Vercel)
@@ -293,7 +339,12 @@ and the vectors live in Pinecone. The `public/` folder is served automatically, 
 
 - **Document access:** for this prototype the PDFs are public in `public/files` (the data is synthetic and was already in the repo).
   In production they would stay in access-controlled storage (e.g. SharePoint or S3 with signed URLs) behind a login
+- **Q05 still fails:** the 30-day dormant-account rule sits in a long bulleted list, so its embedding matches the question
+  weakly and the conflict with the 45-day rule is missed → **multi-query retrieval** or **keyword (BM25) search**
 - **Synonyms** ("vacation" vs "annual leave") can weaken retrieval → add query expansion
+- **Evaluation limits:** 25 questions written with document vocabulary (real employees phrase things differently);
+  context recall only knows the evidence we listed; the judge is from the same model family as the assistant
+  (a judge from another provider would reduce bias)
 - Add a **re-ranker** to improve the order of retrieved chunks
 - **Role-based access** (e.g. HR-only documents for HR staff)
 - **User feedback** buttons (👍 / 👎) and monitoring with LangSmith
