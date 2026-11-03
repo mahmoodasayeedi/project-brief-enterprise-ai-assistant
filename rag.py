@@ -59,6 +59,11 @@ RULES (follow strictly):
    - If two CURRENT documents disagree, say so openly and show both, recommending the employee confirm with the department.
 4b. Products: if a product is marked "Discontinued", "Superseded" or "Replaced by", say so clearly
    and name the replacement product if one is given.
+   - If the ONLY source for an answer is marked STATUS: outdated, still give the information, but clearly
+     warn that it comes from an outdated document (give its date) and may no longer be valid.
+   - Before answering, COMPARE all sources. If they give different numbers, names or systems for the same
+     thing, mention EVERY value with its source and say they conflict. Never pick one silently, and never
+     say you couldn't find the answer when the sources disagree.
 4c. If the same SKU appears for DIFFERENT products in different catalogs, mention the conflict
    and show both, recommending the employee confirm with the merchandising team.
 5. For procedures, answer with clear numbered steps. Be concise, friendly and professional.
@@ -92,7 +97,7 @@ class IronStoreAssistant:
         qvec = self.embeddings.embed_query(query)  # turn the question into a "meaning address" once
 
         def search(flt=None):
-            res = self.index.query(vector=qvec, top_k=config.TOP_K + 4, include_metadata=True, filter=flt)
+            res = self.index.query(vector=qvec, top_k=20, include_metadata=True, filter=flt)
             out = []
             for m in res.matches:
                 md = dict(m.metadata)
@@ -105,12 +110,26 @@ class IronStoreAssistant:
         results = []
         if department in DEPARTMENTS:  # department routing first (RAG routing!)
             results = search({"department": {"$eq": department}})
-
+            # Also search ALL departments, so the same topic in another department
+            # (e.g. the Employee Handbook vs the Expense Policy) is not missed.
+            seen = {d.page_content for d, _ in results}
+            results += [(d, s) for d, s in search() if d.page_content not in seen]
+            results.sort(key=lambda x: x[1], reverse=True)   # best matches first
         if not results or results[0][1] < config.MIN_SIMILARITY + 0.1:
             results = search()  # fall back to all departments
         
         seen = {d.page_content for d, _ in sku_hits}
         results = sku_hits + [(d, s) for d, s in results if d.page_content not in seen]
+
+                # DIVERSITY: keep at most 2 chunks per document, so more DIFFERENT documents get a seat
+        per_doc, diverse = {}, []
+        for d, s in results:
+            src = d.metadata.get("source")
+            if per_doc.get(src, 0) < 2:
+                diverse.append((d, s))
+                per_doc[src] = per_doc.get(src, 0) + 1
+        results = diverse
+
         # current docs first, then at most 2 outdated chunks (only to explain changes)
         current = [(d, s) for d, s in results if d.metadata.get("status") == "current"][: config.TOP_K]
         outdated = [(d, s) for d, s in results if d.metadata.get("status") == "outdated"][:2]
@@ -139,7 +158,7 @@ class IronStoreAssistant:
         query = self.standalone_question(question, history)
         route = self.router.invoke(query)
         meta = {"type": "meta", "route": route.model_dump(), "query": query,
-                "model": config.CHEAP_MODEL, "sources": [], "best_score": 0.0}
+                "model": config.CHEAP_MODEL, "sources": [], "best_score": 0.0,"contexts": []}
 
         if not route.is_company_question and route.department == "General":
             yield meta
@@ -178,7 +197,8 @@ class IronStoreAssistant:
                             "section": m.get("section", ""), "url": file_url(m["source"], page),
                             "department": m["department"], "date": m["date"],
                             "status": m["status"], "score": round(float(score), 2)})
-        meta.update(model=llm.model_name, sources=sources)
+        meta.update(model=llm.model_name, sources=sources,
+        contexts=[doc.page_content for doc, _ in hits])   # the exact text the LLM will read
         yield meta                                   # 1) send routing + sources first
 
         for chunk in llm.stream(messages):           # 2) then the answer, piece by piece

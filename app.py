@@ -56,6 +56,21 @@ def home():
     return (Path(__file__).parent / "templates" / "index.html").read_text(encoding="utf-8")
 
 
+@app.get("/insights", response_class=HTMLResponse)
+def insights_page():
+    """'Under the hood' page: the RAG flow + evaluation results."""
+    return (Path(__file__).parent / "templates" / "insights.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/insights")
+def insights_data():
+    """Evaluation results exported by evaluate_rag.py (scores only, no document text)."""
+    path = Path(__file__).parent / "insights.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="No evaluation data yet")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
@@ -66,7 +81,9 @@ def chat(req: ChatRequest):
     """Normal (non-streaming) answer: waits for the full answer, returns one JSON."""
     question, history = validate(req)
     try:
-        return get_bot().ask(question, history)
+        result = get_bot().ask(question, history)
+        result.pop("contexts", None)   # internal: only used by the evaluation
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Assistant error: {e}")
 
@@ -79,6 +96,7 @@ def chat_stream(req: ChatRequest):
     def events():
         try:
             for event in get_bot().ask_stream(question, history):
+                event.pop("contexts", None)   # internal: only used by the evaluation
                 yield json.dumps(event) + "\n"
         except Exception as e:
             yield json.dumps({"type": "error", "message": f"Assistant error: {e}"}) + "\n"

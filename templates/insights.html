@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Under the hood · IronStore AI Assistant</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7; --surface: #ffffff; --ink: #1f2933; --muted: #52606d; --faint: #8a94a0;
+    --line: #e1e4e8; --navy: #1e3a5f; --navy-soft: #eef2f7;
+    --series-1: #2a78d6; --series-2: #eb6834;
+    --good: #0ca30c; --critical: #d03b3b; --warning: #fab219;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+  a { color: var(--series-1); }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- header ---------- */
+  header.top { background: var(--navy); color: #fff; }
+  header.top .wrap { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; }
+  header.top a { color: #fff; text-decoration: none; opacity: .85; font-size: 14px; }
+  header.top a:hover { opacity: 1; }
+  .brand { font-weight: 700; }
+  .hero { background: var(--navy); color: #fff; padding: 28px 0 56px; }
+  .hero h1 { margin: 0 0 8px; font-size: 32px; letter-spacing: -.5px; }
+  .hero p { margin: 0; max-width: 720px; opacity: .85; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+  .chip { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: 6px 14px; font-size: 14px; }
+  .chip b { font-size: 16px; }
+  nav.sections { display: flex; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
+  nav.sections a { color: #fff; text-decoration: none; background: rgba(255,255,255,.14); padding: 7px 14px; border-radius: 8px; font-size: 14px; }
+  nav.sections a:hover { background: rgba(255,255,255,.24); }
+
+  main { margin-top: -32px; padding-bottom: 60px; }
+  section.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px; margin-bottom: 24px; }
+  section.card > h2 { margin: 0 0 4px; font-size: 22px; }
+  .lead { color: var(--muted); margin: 0 0 20px; max-width: 760px; }
+  h3 { font-size: 16px; margin: 26px 0 10px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+
+  /* ---------- journey ---------- */
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .examples button, .btn { border: 1px solid #c9d2dc; background: #fff; border-radius: 999px; padding: 7px 14px; cursor: pointer; font-size: 13px; color: var(--ink); }
+  .examples button.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .ask-row { display: flex; gap: 8px; margin-bottom: 20px; }
+  .ask-row input { flex: 1; padding: 10px 14px; border: 1px solid #c9d2dc; border-radius: 10px; font-size: 14px; }
+  .btn-primary { background: var(--navy); color: #fff; border: 0; border-radius: 10px; padding: 0 18px; cursor: pointer; font-size: 14px; }
+  .btn-primary:disabled { opacity: .5; cursor: wait; }
+
+  .rail { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; position: relative; }
+  .rail::before { content: ""; position: absolute; left: 6%; right: 6%; top: 30px; height: 2px; background: var(--line); z-index: 0; }
+  .step { position: relative; z-index: 1; background: #fff; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 10px; text-align: center; cursor: pointer; transition: all .25s; }
+  .step .icon { width: 36px; height: 36px; border-radius: 50%; background: var(--navy-soft); display: grid; place-items: center; margin: 0 auto 8px; font-size: 17px; transition: all .25s; }
+  .step .t { font-weight: 600; font-size: 13px; }
+  .step .s { font-size: 11.5px; color: var(--muted); line-height: 1.35; margin-top: 2px; }
+  .step.active { border-color: var(--series-1); box-shadow: 0 0 0 4px rgba(42,120,214,.12); transform: translateY(-2px); }
+  .step.active .icon { background: var(--series-1); color: #fff; }
+  .step.done .icon { background: var(--navy); color: #fff; }
+  .step.skipped { opacity: .45; }
+  .step.selected { border-color: var(--navy); }
+  .step .state { position: absolute; top: 6px; right: 8px; font-size: 11px; }
+
+  .detail { margin-top: 18px; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; background: #fbfcfd; min-height: 160px; }
+  .detail h4 { margin: 0 0 6px; font-size: 15px; }
+  .detail .why { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+  .form { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: inline-block; }
+  .form span { color: var(--series-1); }
+  .src-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .src-table th { text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); padding: 6px 8px; }
+  .src-table td { border-bottom: 1px solid #f0f2f4; padding: 7px 8px; vertical-align: middle; }
+  .rel { display: flex; align-items: center; gap: 8px; }
+  .rel .bar { flex: 0 0 90px; height: 6px; background: #edf0f3; border-radius: 4px; overflow: hidden; }
+  .rel .bar i { display: block; height: 100%; background: var(--series-1); border-radius: 4px; }
+  .pill { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--navy-soft); color: var(--navy); }
+  .pill.outdated { background: #fff4e0; color: #8a5a00; }
+  .gauge { position: relative; height: 12px; background: #edf0f3; border-radius: 6px; margin: 26px 0 8px; max-width: 520px; }
+  .gauge i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--series-1); }
+  .gauge .th { position: absolute; top: -8px; bottom: -8px; width: 2px; background: var(--ink); }
+  .gauge .th::after { content: attr(data-label); position: absolute; top: -18px; left: -24px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .answer-box { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; font-size: 14px; }
+  .answer-box p { margin: 0 0 8px; } .answer-box p:last-child { margin-bottom: 0; }
+  .answer-box ul { margin: 4px 0 8px; padding-left: 20px; }
+  .verdict { margin-top: 10px; font-size: 13px; }
+
+  /* ---------- data prep ---------- */
+  .pipe { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+  .node { background: var(--navy-soft); border-radius: 12px; padding: 14px 10px; text-align: center; position: relative; }
+  .node:not(:last-child)::after { content: "→"; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); color: var(--faint); font-size: 14px; }
+  .node .n { font-size: 22px; font-weight: 700; color: var(--navy); }
+  .node .t { font-weight: 600; font-size: 13px; }
+  .node .s { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .finding { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fff; }
+  .finding .k { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--faint); }
+  .finding .v { font-weight: 600; margin: 4px 0; }
+  .finding .s { font-size: 13px; color: var(--muted); }
+
+  /* ---------- evaluation ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .tile { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: #fff; }
+  .tile .k { font-size: 12.5px; color: var(--muted); }
+  .tile .v { font-size: 28px; font-weight: 700; letter-spacing: -.5px; color: var(--ink); }
+  .tile .s { font-size: 12px; color: var(--faint); }
+  .layers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .layer { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .layer .t { font-weight: 600; }
+  .layer .s { font-size: 13px; color: var(--muted); }
+  .layer .verdict-tag { display: inline-block; font-size: 12px; margin-top: 8px; padding: 2px 8px; border-radius: 6px; background: var(--navy-soft); }
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .chart { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: #fff; position: relative; }
+  .chart h4 { margin: 0 0 2px; font-size: 15px; }
+  .chart .sub { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
+  .legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; padding: 7px 9px; border-radius: 7px; max-width: 260px; opacity: 0; transition: opacity .12s; z-index: 5; line-height: 1.35; }
+  details.table-view { margin-top: 8px; font-size: 12.5px; }
+  details.table-view summary { cursor: pointer; color: var(--muted); }
+  details.table-view table { border-collapse: collapse; margin-top: 6px; width: 100%; }
+  details.table-view td, details.table-view th { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; }
+  .timeline { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+  .ver { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: #fff; position: relative; }
+  .ver.latest { border-color: var(--navy); }
+  .ver .lbl { font-weight: 700; color: var(--navy); }
+  .ver .pr { font-size: 26px; font-weight: 700; }
+  .ver .delta { font-size: 12.5px; margin-left: 6px; }
+  .ver .note { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .ver .mini { font-size: 12px; color: var(--faint); margin-top: 6px; }
+  .fail { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; background: #fff; }
+  .fail summary { cursor: pointer; padding: 10px 14px; font-size: 14px; }
+  .fail summary .qid { font-weight: 700; margin-right: 6px; }
+  .fail .body { padding: 0 14px 12px; font-size: 13px; color: var(--muted); }
+  .fail .scores { font-size: 12px; margin-top: 6px; color: var(--ink); }
+  footer { text-align: center; color: var(--faint); font-size: 13px; padding: 10px 0 40px; }
+  .empty { color: var(--muted); font-style: italic; }
+
+  @media (max-width: 900px) {
+    .rail, .pipe { grid-template-columns: repeat(2, 1fr); }
+    .rail::before { display: none; }
+    .node::after { display: none; }
+    .tiles, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .layers, .charts { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap">
+  <span class="brand">🏬 IronStore AI Assistant</span>
+  <a href="/">← Back to the chat</a>
+</div></header>
+
+<div class="hero"><div class="wrap">
+  <h1>Under the hood</h1>
+  <p>How the assistant turns 83 company PDFs into trustworthy answers, and how we measured whether it really works.</p>
+  <div class="chips" id="chips"></div>
+  <nav class="sections">
+    <a href="#journey">🧭 Journey of a question</a>
+    <a href="#data">🏭 How documents were prepared</a>
+    <a href="#evaluation">📊 How we evaluated it</a>
+  </nav>
+</div></div>
+
+<main class="wrap">
+
+  <!-- ================= 1. JOURNEY ================= -->
+  <section class="card" id="journey">
+    <h2>🧭 The journey of a question</h2>
+    <p class="lead">This is RAG (Retrieval-Augmented Generation) as built in this project. Pick a real example from our evaluation, or ask your own question, and watch each step with the real data it produced.</p>
+
+    <div class="examples" id="examples"></div>
+    <div class="ask-row">
+      <input id="askInput" placeholder="…or ask your own question and watch it live" autocomplete="off">
+      <button class="btn-primary" id="askBtn">Ask live</button>
+    </div>
+
+    <div class="rail" id="rail"></div>
+    <div class="detail" id="detail"><p class="empty">Choose an example above to start.</p></div>
+  </section>
+
+  <!-- ================= 2. DATA ================= -->
+  <section class="card" id="data">
+    <h2>🏭 How the documents were prepared</h2>
+    <p class="lead">Before any question can be answered, <code>ingest.py</code> runs once and turns raw PDFs into searchable, labelled pieces. The data was messy on purpose, so cleaning it was part of the job.</p>
+    <div class="pipe" id="pipe"></div>
+
+    <h3>Messy data we found, and what the assistant does about it</h3>
+    <div class="grid-4" id="findings"></div>
+  </section>
+
+  <!-- ================= 3. EVALUATION ================= -->
+  <section class="card" id="evaluation">
+    <h2>📊 How we evaluated it</h2>
+    <p class="lead" id="evalLead"></p>
+
+    <div class="tiles" id="tiles"></div>
+
+    <h3>Three layers of evaluation</h3>
+    <div class="layers">
+      <div class="layer">
+        <div class="t">🔍 1 · Retrieval</div>
+        <div class="s">Did search open the right document, page, and sentence? Hit rate, recall, MRR and <b>context recall</b> (are the key evidence sentences really in the text the model read?).</div>
+        <span class="verdict-tag">✅ Used: finds <i>where</i> a failure starts</span>
+      </div>
+      <div class="layer">
+        <div class="t">📏 2 · BLEU &amp; ROUGE-L</div>
+        <div class="s">Count words shared with a reference answer. Designed for translation (BLEU) and summaries (ROUGE). They can't tell a wrong answer from a correctly rephrased one.</div>
+        <span class="verdict-tag">⚠️ Kept as a baseline only</span>
+      </div>
+      <div class="layer">
+        <div class="t">🧑‍⚖️ 3 · LLM-as-a-judge</div>
+        <div class="s">A stronger model grades each answer with a rubric: <b>correctness</b>, <b>faithfulness</b> (no hallucination), <b>relevance</b>, and the right <b>behaviour</b> (flag conflicts, warn about old data, refuse off-topic).</div>
+        <span class="verdict-tag">✅ Main metric</span>
+      </div>
+    </div>
+
+    <h3>Why word counting isn't enough</h3>
+    <div class="charts">
+      <div class="chart" id="scatterBox">
+        <h4>ROUGE-L vs the LLM judge, per question</h4>
+        <p class="sub">Each dot is one test question. In the shaded corner, ROUGE says "bad" but the judge, reading the meaning, says "correct".</p>
+        <div class="legend"><span><i style="background:var(--series-1);border-radius:50%"></i>Passed</span><span><i style="background:var(--critical)"></i>Failed (×)</span></div>
+        <svg id="scatter" width="100%" viewBox="0 0 480 300" role="img" aria-label="Scatter plot of ROUGE-L against judge correctness"></svg>
+        <details class="table-view"><summary>Show as table</summary><div id="scatterTable"></div></details>
+      </div>
+      <div class="chart" id="barsBox">
+        <h4>By category: judge pass rate vs ROUGE-L</h4>
+        <p class="sub">ROUGE is lowest exactly where the assistant must <i>behave</i> (refuse, warn, flag a conflict) rather than repeat a fact.</p>
+        <div class="legend"><span><i style="background:var(--series-1)"></i>LLM judge: pass rate</span><span><i style="background:var(--series-2)"></i>ROUGE-L (word overlap)</span></div>
+        <svg id="bars" width="100%" viewBox="0 0 480 300" role="img" aria-label="Bar chart of judge pass rate and ROUGE-L by category"></svg>
+        <details class="table-view"><summary>Show as table</summary><div id="barsTable"></div></details>
+      </div>
+    </div>
+
+    <h3>Measure → fix → measure again</h3>
+    <p class="muted small" style="margin-top:-4px">Every change was re-tested on all questions. Some fixes helped, one caused a regression, and one "failure" turned out to be a wrong test.</p>
+    <div class="timeline" id="timeline"></div>
+
+    <h3>Questions that still fail, with the judge's reasoning</h3>
+    <div id="failures"></div>
+  </section>
+</main>
+
+<footer>Built with LangChain · OpenAI · Pinecone · FastAPI · Vercel</footer>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = (v) => v == null ? "–" : Math.round(v * 100) + "%";
+const short = (f) => (f || "").replace(/^IronStore_/, "").replace(/\.pdf$/, "").replace(/_/g, " ");
+const linkify = (text) => text.replace(/\[([\w.\-]+\.pdf)(?:,\s*p(?:age|\.)?\s*(\d+))?\]/gi,
+  (all, file, page) => `[📄 ${short(file)}${page ? ", p. " + page : ""}](/files/${encodeURIComponent(file)}${page ? "#page=" + page : ""})`);
+const md = (text) => {
+  const html = (window.marked && window.DOMPurify) ? DOMPurify.sanitize(marked.parse(linkify(text))) : esc(text).replace(/\n/g, "<br>");
+  return html.replace(/<a /g, '<a target="_blank" rel="noopener" ');
+};
+const SKU_RE = /\b[A-Z]{2,4}(?:-[A-Z0-9]{1,6}){2,4}\b/g;
+
+let DATA = null;
+let THRESHOLD = 0.30;
+
+/* ======================= JOURNEY ======================= */
+const STEPS = [
+  { key: "question",  icon: "💬", t: "Question",      s: "Plain language" },
+  { key: "rewrite",   icon: "🔁", t: "Rewrite",       s: "Follow-ups → full question" },
+  { key: "router",    icon: "🔀", t: "Router",        s: "Cheap model fills a form" },
+  { key: "search",    icon: "🔎", t: "Hybrid search", s: "Exact SKU + meaning" },
+  { key: "guardrail", icon: "🛡️", t: "Guardrail",     s: "Too weak? Don't guess" },
+  { key: "generate",  icon: "🧠", t: "Model routing", s: "Easy → mini · Hard → big" },
+  { key: "cite",      icon: "📄", t: "Answer",        s: "Streamed, with page links" },
+];
+let current = null;          // the journey being shown
+let selectedStep = null;
+let playTimer = null;
+
+function buildRail() {
+  $("#rail").innerHTML = STEPS.map((st, i) => `
+    <div class="step" data-i="${i}" tabindex="0" role="button" aria-label="${st.t}">
+      <span class="state"></span>
+      <div class="icon">${st.icon}</div><div class="t">${st.t}</div><div class="s">${st.s}</div>
+    </div>`).join("");
+  document.querySelectorAll(".step").forEach(el => {
+    const go = () => { stopPlay(); showStep(+el.dataset.i); };
+    el.addEventListener("click", go);
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  });
+}
+
+// which steps run for this journey? (refusals stop at the router, weak matches at the guardrail)
+function stopAt(j) {
+  if (!j.route) return null;
+  if (j.route.is_company_question === false && j.route.department === "General") return "router";
+  if (j.best_score != null && j.best_score < THRESHOLD) return "guardrail";
+  return null;
+}
+function isSkipped(j, key) {
+  const stop = stopAt(j);
+  if (!stop) return false;
+  const order = STEPS.map(s => s.key);
+  return order.indexOf(key) > order.indexOf(stop) && key !== "cite";
+}
+
+function setStates(activeIdx, doneUpTo) {
+  document.querySelectorAll(".step").forEach((el, i) => {
+    const key = STEPS[i].key;
+    el.classList.toggle("active", i === activeIdx);
+    el.classList.toggle("done", i <= doneUpTo && i !== activeIdx);
+    el.classList.toggle("skipped", !!current && isSkipped(current, key));
+    el.classList.toggle("selected", i === selectedStep);
+    el.querySelector(".state").textContent = current && isSkipped(current, key) ? "skipped" : (i <= doneUpTo ? "✓" : "");
+  });
+}
+
+function showStep(i) {
+  selectedStep = i;
+  setStates(-1, current ? (current.done ? STEPS.length - 1 : current.reached ?? -1) : -1);
+  $("#detail").innerHTML = current ? renderDetail(current, STEPS[i].key) : '<p class="empty">Choose an example above to start.</p>';
+}
+
+function renderDetail(j, key) {
+  const route = j.route || {};
+  const skus = (j.question.toUpperCase().match(SKU_RE) || []);
+  if (isSkipped(j, key)) {
+    return `<h4>${STEPS.find(s => s.key === key).icon} Skipped</h4>
+      <p class="why">${stopAt(j) === "router"
+        ? "The router decided this is not an IronStore question, so the assistant stopped early: no search, no big model, no cost. 💰"
+        : "The best match was too weak, so the assistant stopped here instead of guessing."}</p>`;
+  }
+  switch (key) {
+    case "question":
+      return `<h4>💬 The employee asks</h4>
+        <p class="why">Nothing special to type: plain language works. The assistant also scans for exact product codes.</p>
+        <div class="answer-box">“${esc(j.question)}”</div>
+        <p class="verdict">${skus.length ? `🔖 Product code detected: <b>${esc(skus.join(", "))}</b> → it will also be looked up <b>exactly</b>, not only by meaning.` : "No product code in this question → search by meaning only."}</p>`;
+    case "rewrite":
+      return `<h4>🔁 Rewrite follow-up questions</h4>
+        <p class="why">The server forgets everything between requests (Vercel is stateless), so the <b>browser</b> sends the chat history. If the question depends on earlier messages ("and for part-time staff?"), the cheap model rewrites it into a full question before searching.</p>
+        <div class="form">search query: <span>"${esc(j.query || j.question)}"</span></div>
+        <p class="verdict muted">${(j.query || j.question) === j.question ? "No earlier messages here, so the question is used as it is." : "This question was rewritten using the conversation."}</p>`;
+    case "router":
+      return `<h4>🔀 The router fills in a form (structured output)</h4>
+        <p class="why">A cheap model (<code>${esc(DATA?.settings?.cheap_model || "gpt-5.4-mini")}</code>) must answer in a fixed shape, so the code can act on it reliably.</p>
+        <div class="form">difficulty: <span>"${esc(route.difficulty ?? "…")}"</span><br>
+        department: <span>"${esc(route.department ?? "…")}"</span><br>
+        is_company_question: <span>${esc(route.is_company_question ?? "…")}</span></div>
+        <p class="verdict">${stopAt(j) === "router" ? "🛑 Not an IronStore question → polite decline. The journey stops here." :
+          `➡️ Search <b>${esc(route.department)}</b> first, then all departments. Difficulty <b>${esc(route.difficulty)}</b> decides the model later.`}</p>`;
+    case "search": {
+      const rows = (j.sources || []).map(s => `
+        <tr><td>📄 ${esc(short(s.file))}</td><td>${s.page ?? "–"}</td><td class="muted">${esc(s.section || "")}</td>
+        <td><span class="pill ${s.status === "outdated" ? "outdated" : ""}">${esc(s.status)}</span></td>
+        <td><div class="rel"><div class="bar"><i style="width:${Math.round((s.score ?? 0) * 100)}%"></i></div>${(s.score ?? 0).toFixed(2)}${s.score >= 0.999 ? " <span class='muted small'>(exact SKU)</span>" : ""}</div></td></tr>`).join("");
+      const docs = new Set((j.sources || []).map(s => s.file)).size;
+      return `<h4>🔎 Hybrid search in Pinecone</h4>
+        <p class="why">The question becomes a 512-number "meaning address" and Pinecone finds the closest chunks. Product codes are matched <b>exactly</b> (keyword search). At most 2 chunks per document, so different documents, and their conflicts, get a seat.</p>
+        ${rows ? `<table class="src-table"><thead><tr><th>Document</th><th>Page</th><th>Section</th><th>Status</th><th>Relevance</th></tr></thead><tbody>${rows}</tbody></table>
+        <p class="verdict muted">${docs} different document${docs === 1 ? "" : "s"} handed to the model. Outdated chunks are kept only to explain what changed.</p>` : '<p class="empty">Waiting for search results…</p>'}`;
+    }
+    case "guardrail": {
+      const b = j.best_score ?? 0, ok = b >= THRESHOLD;
+      return `<h4>🛡️ Guardrail: is the evidence strong enough?</h4>
+        <p class="why">If even the best match is weaker than ${THRESHOLD.toFixed(2)}, the assistant says “I couldn't find this” instead of inventing an answer.</p>
+        <div class="gauge" aria-label="Best relevance ${b.toFixed(2)}"><i style="width:${Math.min(100, b * 100)}%"></i><span class="th" style="left:${THRESHOLD * 100}%" data-label="threshold ${THRESHOLD.toFixed(2)}"></span></div>
+        <p class="verdict">Best relevance <b>${b.toFixed(2)}</b> ${ok ? "≥" : "<"} ${THRESHOLD.toFixed(2)} → ${ok ? "✅ strong enough, continue" : "🛑 too weak: honest “I don't know”"}</p>`;
+    }
+    case "generate":
+      return `<h4>🧠 Model routing and generation</h4>
+        <p class="why">Easy questions go to the cheap, fast model; hard ones to the stronger model. The prompt contains strict rules: answer only from the context, cite pages, flag conflicts, warn about outdated documents, end with a confidence level.</p>
+        <div class="form">difficulty <span>${esc(route.difficulty ?? "…")}</span> → model <span>${esc(j.model ?? "…")}</span></div>
+        ${j.latency_s ? `<p class="verdict muted">⏱️ Full answer in ${j.latency_s}s, streamed token by token so the employee starts reading immediately.</p>` : ""}`;
+    case "cite":
+      return `<h4>📄 The answer, with sources</h4>
+        <p class="why">Citations become links that open the PDF on the cited page, so employees can check for themselves.</p>
+        <div class="answer-box">${j.answer ? md(j.answer) : '<span class="empty">Writing…</span>'}</div>
+        ${j.passed != null ? `<p class="verdict">${j.passed ? "✅ Passed" : "❌ Failed"} in our evaluation (${esc(j.id)} · ${esc(j.category)}).</p>` : ""}`;
+  }
+  return "";
+}
+
+function stopPlay() { if (playTimer) { clearInterval(playTimer); playTimer = null; } }
+
+function play(journey) {
+  stopPlay();
+  current = { ...journey, reached: -1, done: false };
+  let i = 0;
+  const tick = () => {
+    if (i >= STEPS.length) { current.done = true; stopPlay(); showStep(STEPS.length - 1); return; }
+    current.reached = i - 1;
+    selectedStep = i;
+    setStates(i, i - 1);
+    $("#detail").innerHTML = renderDetail(current, STEPS[i].key);
+    i++;
+  };
+  tick();
+  playTimer = setInterval(tick, 1300);
+}
+
+function buildExamples() {
+  const labels = { doc_conflict: "⚖️ Documents disagree", sku_conflict: "🔖 SKU conflict", outdated: "🕰️ Outdated catalog",
+                   refuse: "🙅 Off-topic", policy_fact: "📘 Simple policy fact", partial: "🧩 Partial answer" };
+  const ex = DATA?.examples || [];
+  $("#examples").innerHTML = ex.map((e, i) =>
+    `<button data-i="${i}" title="${esc(e.question)}">${labels[e.category] || e.category}: ${esc(e.question.length > 42 ? e.question.slice(0, 40) + "…" : e.question)}</button>`).join("");
+  document.querySelectorAll("#examples button").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("#examples button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    play(ex[+b.dataset.i]);
+  }));
+}
+
+async function askLive() {
+  const q = $("#askInput").value.trim();
+  if (!q) return;
+  stopPlay();
+  document.querySelectorAll("#examples button").forEach(x => x.classList.remove("active"));
+  $("#askBtn").disabled = true;
+  current = { question: q, query: q, route: null, sources: [], answer: "", reached: 1, done: false };
+  const t0 = performance.now();
+  selectedStep = 2; setStates(2, 1); $("#detail").innerHTML = renderDetail(current, "router");
+  try {
+    const res = await fetch("/api/chat/stream", { method: "POST", headers: { "Content-Type": "application/json" },
+                                                  body: JSON.stringify({ question: q, history: [] }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "Request failed");
+    const reader = res.body.getReader(), decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n"); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === "meta") {
+          Object.assign(current, { route: ev.route, query: ev.query, model: ev.model, best_score: ev.best_score, sources: ev.sources });
+          current.reached = 4; selectedStep = 3; setStates(5, 4);
+          $("#detail").innerHTML = renderDetail(current, "search");
+        } else if (ev.type === "token") {
+          current.answer += ev.text;
+          selectedStep = 6; setStates(6, 5);
+          $("#detail").innerHTML = renderDetail(current, "cite");
+        } else if (ev.type === "error") throw new Error(ev.message);
+      }
+    }
+    current.latency_s = ((performance.now() - t0) / 1000).toFixed(1);
+    current.done = true; selectedStep = 6; setStates(-1, 6);
+    $("#detail").innerHTML = renderDetail(current, "cite") + `<p class="verdict muted">Tip: click any step above to see what it did for your question.</p>`;
+  } catch (err) {
+    $("#detail").innerHTML = `<p>⚠️ ${esc(err.message)}</p>`;
+  } finally { $("#askBtn").disabled = false; }
+}
+
+/* ======================= DATA PREP ======================= */
+function buildData() {
+  const d = DATA?.data, s = DATA?.settings || {};
+  const docs = d?.documents ?? 83, deps = d ? Object.keys(d.departments).length : 8;
+  const chunks = d?.chunks ? d.chunks.toLocaleString() : "~4k";
+  const nodes = [
+    { n: docs, t: "PDFs", s: `${deps} departments + product catalogs` },
+    { n: "🧹", t: "Clean", s: "HTML leftovers, broken ■ characters, hidden bullets" },
+    { n: "🏷️", t: "Label", s: "Department, date, version, page, section" },
+    { n: "🕵️", t: "Quality checks", s: "Duplicates, outdated versions, SKU conflicts" },
+    { n: "✂️", t: "Chunk", s: `${s.chunk_size || 1000} characters, ${s.chunk_overlap || 150} overlap, per page` },
+    { n: s.embedding_dims || 512, t: "Embed", s: `numbers per chunk (${esc(s.embedding_model || "text-embedding-3-small")})` },
+    { n: chunks, t: "Pinecone", s: "vectors + labels, ready to search" },
+  ];
+  $("#pipe").innerHTML = nodes.map(n => `<div class="node"><div class="n">${n.n}</div><div class="t">${n.t}</div><div class="s">${n.s}</div></div>`).join("");
+
+  const outdated = d?.outdated?.length ? d.outdated.map(short).join(", ") : "Old Product Catalog 2021";
+  const findings = [
+    { k: "Outdated document", v: outdated, s: "Reviewed in 2021, everything else in 2026. Marked outdated: the assistant warns before quoting it." },
+    { k: "Same code, two products", v: "IS-BED-001 to 004", s: "Different products in two catalogs. The assistant shows both and asks to confirm with merchandising." },
+    { k: "Documents disagree", v: "SpendHub vs SpendFlow · 30 vs 45 days", s: "Found by our evaluation, not by reading! The assistant must mention both values." },
+    { k: "Broken text", v: "Wroc■aw → Wrocław", s: "Regex cleaning fixed broken characters and removed HTML leftovers before indexing." },
+  ];
+  $("#findings").innerHTML = findings.map(f => `<div class="finding"><div class="k">${f.k}</div><div class="v">${esc(f.v)}</div><div class="s">${f.s}</div></div>`).join("");
+}
+
+/* ======================= EVALUATION ======================= */
+function buildEval() {
+  const S = DATA.summary, set = DATA.settings || {};
+  $("#evalLead").innerHTML = `A golden dataset of <b>${S.questions} questions</b> with reference answers, expected sources and evidence sentences, covering simple facts, procedures, products, conflicts, outdated data, partial answers and questions the assistant must refuse. Answers were graded by <code>${esc(set.judge_model || "gpt-5.4")}</code>.`;
+  const tiles = [
+    { k: "Pass rate (LLM judge)", v: pct(S.pass_rate), s: `${S.passed} of ${S.questions} questions` },
+    { k: "Faithfulness", v: (S.faithfulness ?? 0).toFixed(2), s: "out of 5 · no hallucination = 5" },
+    { k: "Retrieval hit rate", v: pct(S.retrieval_hit), s: `MRR ${(S.mrr ?? 0).toFixed(2)} · right document ranked 1st` },
+    { k: "Context recall", v: pct(S.context_recall), s: "key evidence in the text the model read" },
+    { k: "Avg. ROUGE-L", v: (S.rougeL ?? 0).toFixed(2), s: "word overlap · baseline only" },
+  ];
+  $("#tiles").innerHTML = tiles.map(t => `<div class="tile"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join("");
+  drawScatter(); drawBars(); buildTimeline(); buildFailures();
+}
+
+function tooltip(box) {
+  let tip = box.querySelector(".tip");
+  if (!tip) { tip = document.createElement("div"); tip.className = "tip"; box.appendChild(tip); }
+  return {
+    show(html, evt) {
+      tip.innerHTML = html; tip.style.opacity = 1;
+      const r = box.getBoundingClientRect();
+      let x = evt.clientX - r.left + 12, y = evt.clientY - r.top + 12;
+      if (x + 260 > r.width) x = evt.clientX - r.left - 270;
+      tip.style.left = x + "px"; tip.style.top = y + "px";
+    },
+    hide() { tip.style.opacity = 0; },
+  };
+}
+
+function drawScatter() {
+  const Q = DATA.questions, W = 480, H = 300, m = { l: 44, r: 14, t: 12, b: 40 };
+  const x = v => m.l + v * (W - m.l - m.r);
+  const y = v => H - m.b - ((v - 1) / 4) * (H - m.t - m.b);
+  let g = "";
+  // shaded "ROUGE says bad, judge says correct" corner
+  g += `<rect x="${x(0)}" y="${y(5.3)}" width="${x(0.3) - x(0)}" height="${y(3.7) - y(5.3)}" fill="#eef4fc" rx="6"/>`;
+  g += `<text x="${x(0.015)}" y="${y(3.52)}" font-size="10.5" fill="#52606d">↑ ROUGE: “bad” · judge: “correct”</text>`;
+  for (let v = 1; v <= 5; v++) g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="#eef0f2"/><text x="${m.l - 8}" y="${y(v) + 4}" font-size="11" fill="#52606d" text-anchor="end">${v}</text>`;
+  for (let v = 0; v <= 1.0001; v += 0.25) g += `<text x="${x(v)}" y="${H - m.b + 16}" font-size="11" fill="#52606d" text-anchor="middle">${v.toFixed(2)}</text>`;
+  g += `<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="#c9d2dc"/>`;
+  g += `<text x="${(W + m.l) / 2}" y="${H - 6}" font-size="11.5" fill="#1f2933" text-anchor="middle">ROUGE-L (word overlap with reference)</text>`;
+  g += `<text transform="translate(12 ${(H - m.b + m.t) / 2}) rotate(-90)" font-size="11.5" fill="#1f2933" text-anchor="middle">Judge correctness (1–5)</text>`;
+  // small deterministic jitter so dots with the same score don't hide each other
+  const seen = {};
+  Q.forEach((q, i) => {
+    const key = q.correctness + ":" + Math.round(q.rougeL * 20);
+    const n = (seen[key] = (seen[key] || 0) + 1) - 1;
+    // spread overlapping dots in small rings around their true position
+    const ring = Math.ceil(n / 6), ang = (n % 6) * Math.PI / 3 + ring;
+    const cx = x(q.rougeL) + (n ? Math.cos(ang) * 7 * ring : 0), cy = y(q.correctness) + (n ? Math.sin(ang) * 7 * ring : 0);
+    g += q.passed
+      ? `<circle class="pt" data-i="${i}" cx="${cx}" cy="${cy}" r="5.5" fill="var(--series-1)" stroke="#fff" stroke-width="2"/>`
+      : `<g class="pt" data-i="${i}" stroke="var(--critical)" stroke-width="2.6" stroke-linecap="round"><line x1="${cx - 5}" y1="${cy - 5}" x2="${cx + 5}" y2="${cy + 5}"/><line x1="${cx - 5}" y1="${cy + 5}" x2="${cx + 5}" y2="${cy - 5}"/><circle cx="${cx}" cy="${cy}" r="10" fill="transparent" stroke="none"/></g>`;
+  });
+  const svg = $("#scatter"); svg.innerHTML = g;
+  const tip = tooltip($("#scatterBox"));
+  svg.querySelectorAll(".pt").forEach(p => {
+    p.style.cursor = "pointer";
+    p.addEventListener("mousemove", e => {
+      const q = Q[+p.dataset.i];
+      tip.show(`<b>${q.id}</b> · ${esc(q.category)}<br>${esc(q.question)}<br>ROUGE-L ${q.rougeL.toFixed(2)} · judge ${q.correctness}/5 · ${q.passed ? "passed ✓" : "failed ✕"}`, e);
+    });
+    p.addEventListener("mouseleave", () => tip.hide());
+  });
+  $("#scatterTable").innerHTML = `<table><tr><th>ID</th><th>Category</th><th>ROUGE-L</th><th>Judge</th><th>Result</th></tr>${
+    Q.map(q => `<tr><td>${q.id}</td><td>${q.category}</td><td>${q.rougeL.toFixed(2)}</td><td>${q.correctness}/5</td><td>${q.passed ? "✓ passed" : "✕ failed"}</td></tr>`).join("")}</table>`;
+}
+
+function drawBars() {
+  const Q = DATA.questions;
+  const cats = [...new Set(Q.map(q => q.category))].map(c => {
+    const g = Q.filter(q => q.category === c);
+    return { c, n: g.length, pass: g.filter(q => q.passed).length / g.length, rouge: g.reduce((a, q) => a + q.rougeL, 0) / g.length };
+  });
+  const W = 480, rowH = 31, m = { l: 96, r: 40, t: 6 }, H = m.t + cats.length * rowH + 22;
+  $("#bars").setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const x = v => m.l + v * (W - m.l - m.r);
+  let g = "";
+  [0, 0.5, 1].forEach(v => g += `<line x1="${x(v)}" x2="${x(v)}" y1="${m.t}" y2="${H - 20}" stroke="#eef0f2"/><text x="${x(v)}" y="${H - 6}" font-size="11" fill="#52606d" text-anchor="middle">${v * 100}%</text>`);
+  cats.forEach((c, i) => {
+    const y0 = m.t + i * rowH;
+    g += `<text x="${m.l - 8}" y="${y0 + 15}" font-size="11.5" fill="#1f2933" text-anchor="end">${c.c.replace("_", " ")}</text>`;
+    g += `<rect class="bar" data-i="${i}" data-k="pass" x="${x(0)}" y="${y0 + 3}" width="${Math.max(2, x(c.pass) - x(0))}" height="11" rx="4" fill="var(--series-1)"/>`;
+    g += `<rect class="bar" data-i="${i}" data-k="rouge" x="${x(0)}" y="${y0 + 16}" width="${Math.max(2, x(c.rouge) - x(0))}" height="11" rx="4" fill="var(--series-2)"/>`;
+    g += `<text x="${x(c.pass) + 5}" y="${y0 + 12.5}" font-size="10.5" fill="#52606d">${Math.round(c.pass * 100)}%</text>`;
+    g += `<text x="${x(c.rouge) + 5}" y="${y0 + 25.5}" font-size="10.5" fill="#52606d">${c.rouge.toFixed(2)}</text>`;
+  });
+  const svg = $("#bars"); svg.innerHTML = g;
+  const tip = tooltip($("#barsBox"));
+  svg.querySelectorAll(".bar").forEach(b => {
+    b.addEventListener("mousemove", e => {
+      const c = cats[+b.dataset.i];
+      tip.show(`<b>${c.c.replace("_", " ")}</b> · ${c.n} question${c.n > 1 ? "s" : ""}<br>Judge pass rate ${Math.round(c.pass * 100)}%<br>Average ROUGE-L ${c.rouge.toFixed(2)}`, e);
+    });
+    b.addEventListener("mouseleave", () => tip.hide());
+  });
+  $("#barsTable").innerHTML = `<table><tr><th>Category</th><th>Questions</th><th>Judge pass rate</th><th>ROUGE-L</th></tr>${
+    cats.map(c => `<tr><td>${c.c}</td><td>${c.n}</td><td>${Math.round(c.pass * 100)}%</td><td>${c.rouge.toFixed(2)}</td></tr>`).join("")}</table>`;
+}
+
+function buildTimeline() {
+  const H = DATA.history || [];
+  if (!H.length) { $("#timeline").innerHTML = '<p class="empty">Run <code>python evaluate_rag.py --label v1</code> to start the history.</p>'; return; }
+  $("#timeline").innerHTML = H.map((h, i) => {
+    const prev = H[i - 1];
+    const d = prev ? Math.round((h.pass_rate - prev.pass_rate) * 100) : null;
+    const delta = d == null ? "" : `<span class="delta" style="color:${d > 0 ? "var(--good)" : d < 0 ? "var(--critical)" : "var(--muted)"}">${d > 0 ? "▲ +" : d < 0 ? "▼ " : "■ "}${d} pts</span>`;
+    return `<div class="ver ${i === H.length - 1 ? "latest" : ""}">
+      <div class="lbl">${esc(h.label)}</div>
+      <div><span class="pr">${pct(h.pass_rate)}</span>${delta}</div>
+      <div class="mini">faithfulness ${(h.faithfulness ?? 0).toFixed(2)} · recall ${pct(h.retrieval_recall)}${h.context_recall != null ? ` · context ${pct(h.context_recall)}` : ""}</div>
+      <div class="note">${esc(h.note || "")}</div></div>`;
+  }).join("");
+}
+
+function buildFailures() {
+  const F = DATA.questions.filter(q => !q.passed);
+  $("#failures").innerHTML = F.length ? F.map(q => `
+    <details class="fail"><summary><span class="qid">${q.id}</span>${esc(q.question)} <span class="pill">${esc(q.category)}</span></summary>
+      <div class="body">🧑‍⚖️ ${esc(q.reasoning)}
+      <div class="scores">correctness ${q.correctness}/5 · faithfulness ${q.faithfulness}/5 · relevance ${q.relevance}/5 · behaviour ${q.behaviour_ok ? "✓" : "✕"} · ROUGE-L ${q.rougeL.toFixed(2)}</div></div>
+    </details>`).join("") : '<p>🎉 Every question passed.</p>';
+}
+
+/* ======================= LOAD ======================= */
+async function init() {
+  buildRail();
+  try {
+    const res = await fetch("/api/insights");
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "No evaluation data yet");
+    DATA = await res.json();
+    THRESHOLD = DATA.settings?.min_similarity ?? 0.30;
+    const S = DATA.summary, d = DATA.data;
+    $("#chips").innerHTML = [
+      `<b>${d?.documents ?? 83}</b> documents`,
+      d?.chunks ? `<b>${d.chunks.toLocaleString()}</b> searchable chunks` : null,
+      `<b>${S.questions}</b> test questions`,
+      `<b>${pct(S.pass_rate)}</b> pass rate`,
+      `<b>${(S.faithfulness ?? 0).toFixed(2)}</b>/5 faithfulness`,
+    ].filter(Boolean).map(c => `<span class="chip">${c}</span>`).join("");
+    buildExamples(); buildData(); buildEval();
+    document.querySelector("#examples button")?.click();
+  } catch (err) {
+    buildData();
+    $("#evaluation").insertAdjacentHTML("beforeend", `<p>⚠️ ${esc(err.message)}. Run <code>python evaluate_rag.py</code> to create <code>insights.json</code>.</p>`);
+  }
+  $("#askBtn").addEventListener("click", askLive);
+  $("#askInput").addEventListener("keydown", e => { if (e.key === "Enter") askLive(); });
+}
+init();
+</script>
+</body>
+</html>

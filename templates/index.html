@@ -22,6 +22,10 @@
   .meta details summary { cursor: pointer; }
   .meta ul { margin: 6px 0 0; padding-left: 18px; }
   .msg a { color: #1d4ed8; }
+  .journey { margin-top: 6px; }
+  .journey summary { cursor: pointer; }
+  .journey ol { margin: 6px 0 4px; padding-left: 18px; }
+  .journey li { margin: 2px 0; }
   .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; background: #eef2f7; margin-right: 4px; }
   .current { color: #15803d; } .outdated { color: #b45309; }
   .typing { color: #6b7280; font-style: italic; }
@@ -37,7 +41,8 @@
 <div class="app">
   <header>
     <h1>🏬 IronStore Enterprise AI Assistant</h1>
-    <p>Ask about company policies, procedures and products. Answers come only from internal documents.</p>
+    <p>Ask about company policies, procedures and products. Answers come only from internal documents.
+       <a href="/insights" style="color:#fff;opacity:.9;margin-left:6px">🧭 See how it works →</a></p>
   </header>
   <div id="chat"></div>
   <div class="suggestions" id="suggestions">
@@ -87,7 +92,27 @@
             + ` · ${s.date} · <span class="${s.status}">${s.status}</span> · relevance ${s.score}</li>`).join("")
             + `</ul></details>`;
     }
+    html += renderJourney(meta);
     return html + "</div>";
+  }
+
+  // "How I found this": the real steps behind this answer, in plain words
+  function renderJourney(meta) {
+    const r = meta.route || {};
+    const docs = new Set((meta.sources || []).map(s => s.file)).size;
+    const best = meta.best_score ?? 0;
+    const steps = [
+      `🔀 <b>Router:</b> ${r.difficulty} question, department <b>${esc(r.department || "")}</b>`,
+    ];
+    if (r.is_company_question === false && r.department === "General") {
+      steps.push("🛑 Not an IronStore question → declined without searching");
+    } else {
+      steps.push(`🔎 <b>Search:</b> ${meta.sources.length} passage${meta.sources.length === 1 ? "" : "s"} from ${docs} document${docs === 1 ? "" : "s"} (best relevance ${best.toFixed(2)})`);
+      steps.push(best >= 0.30 ? "🛡️ <b>Guardrail:</b> evidence strong enough ✓" : "🛡️ <b>Guardrail:</b> evidence too weak → no guessing");
+      if (meta.model && meta.model !== "-") steps.push(`🧠 <b>Model:</b> ${esc(meta.model)}`);
+    }
+    return `<details class="journey"><summary>🧭 How I found this</summary><ol>${steps.map(s => `<li>${s}</li>`).join("")}</ol>`
+         + `<a href="/insights">See the full flow →</a></details>`;
   }
 
   async function ask(question) {

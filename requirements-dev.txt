@@ -7,3 +7,5 @@ ipykernel
 uvicorn
 pytest
 httpx
+nltk
+rouge-score
