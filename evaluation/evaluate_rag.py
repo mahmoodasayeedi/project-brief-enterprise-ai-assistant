@@ -1,14 +1,15 @@
 """Evaluation system for the IronStore Enterprise AI Assistant.
 
-Run:  python evaluate_rag.py           -> uses saved answers in eval_runs.json if they exist
-      python evaluate_rag.py --rerun   -> asks the assistant all questions again
+Run from the project folder:
+      python -m evaluation.evaluate_rag           -> uses saved answers in results/eval_runs.json if they exist
+      python -m evaluation.evaluate_rag --rerun   -> asks the assistant all questions again
 
 Step 3: retrieval metrics (hit rate, recall, MRR, page hit, context recall)
 Step 4: lexical metrics (BLEU, ROUGE-L) against the reference answers
 Step 5: LLM-as-a-judge (correctness, faithfulness, relevance, behaviour)
 
-      python evaluate_rag.py --rejudge -> grades all answers again with the LLM judge
-      python evaluate_rag.py --label v4 --note "what changed" -> also records this run in the history
+      python -m evaluation.evaluate_rag --rejudge -> grades all answers again with the LLM judge
+      python -m evaluation.evaluate_rag --rerun --label v11 --note "what changed" -> also records this run in the history
 
 Step 6: exports insights.json for the "Under the hood" page (/insights)
 """
@@ -22,13 +23,15 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-DATASET = "eval_dataset.csv"
-RUNS = "eval_runs.json"          # saved answers (so we don't pay twice)
-RESULTS = "eval_results.csv"     # one row per question with all scores
-JUDGEMENTS = "eval_judgements.json"   # saved grades from the LLM judge
+EVAL_DIR = Path(__file__).resolve().parent         # the evaluation/ folder
+RESULTS_DIR = EVAL_DIR / "results"                  # generated files (mostly not on GitHub)
+DATASET = EVAL_DIR / "eval_dataset.csv"
+RUNS = RESULTS_DIR / "eval_runs.json"          # saved answers (so we don't pay twice)
+RESULTS = RESULTS_DIR / "eval_results.csv"     # one row per question with all scores
+JUDGEMENTS = RESULTS_DIR / "eval_judgements.json"   # saved grades from the LLM judge
 JUDGE_MODEL = os.getenv("JUDGE_MODEL", "gpt-5.4")   # a stronger model grades the answers
-HISTORY = "eval_history.json"    # one summary per labelled run (v1, v2, v3...)
-INSIGHTS = "insights.json"       # everything the /insights page shows (no document text)
+HISTORY = EVAL_DIR / "eval_history.json"    # one summary per labelled run (v1, v2, v3...)
+INSIGHTS = EVAL_DIR / "insights.json"       # everything the /insights page shows (no document text)
 EXAMPLE_IDS = ["Q04", "Q19", "Q20", "Q24", "Q01"]   # real answers replayed on the /insights page
 
 
@@ -60,7 +63,7 @@ def run_assistant(rows: list[dict], rerun: bool = False) -> dict:
         print(f"📂 Using saved answers from {RUNS} (add --rerun to ask again)\n")
         return json.loads(Path(RUNS).read_text(encoding="utf-8"))
 
-    from rag import IronStoreAssistant
+    from ironstore.rag import IronStoreAssistant
     bot = IronStoreAssistant()
     runs = {}
     print(f"🤖 Asking the assistant {len(rows)} questions...")
@@ -204,7 +207,7 @@ ASSISTANT ANSWER:
 
 
 def make_judge():
-    import config  # noqa: F401  (loads OPENAI_API_KEY from .env)
+    from ironstore import config  # noqa: F401  (loads OPENAI_API_KEY from .env)
     from langchain_openai import ChatOpenAI
     return ChatOpenAI(model=JUDGE_MODEL, temperature=0).with_structured_output(Judgement)
 
@@ -255,10 +258,15 @@ def summarize(results: list[dict]) -> dict:
 
 def data_stats() -> dict | None:
     """Facts about the document collection, from ingest.py's doc_catalog.json (+ Pinecone if reachable)."""
-    if not Path("doc_catalog.json").exists():
+    try:
+        from ironstore import config
+        catalog_path = Path(config.CATALOG_PATH)
+    except Exception:
+        catalog_path = Path("data/doc_catalog.json")
+    if not catalog_path.exists():
         return None
     from collections import Counter
-    catalog = json.loads(Path("doc_catalog.json").read_text(encoding="utf-8"))
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
     docs = [d for d in catalog if d.get("status") != "duplicate"]
     stats = {
         "documents": len(docs),
@@ -268,7 +276,7 @@ def data_stats() -> dict | None:
         "chunks": None,
     }
     try:  # optional: how many vectors are in Pinecone
-        import config
+        from ironstore import config
         from pinecone import Pinecone
         stats["chunks"] = Pinecone().Index(config.PINECONE_INDEX).describe_index_stats()["total_vector_count"]
     except Exception:
@@ -278,7 +286,7 @@ def data_stats() -> dict | None:
 
 def settings() -> dict:
     try:
-        import config
+        from ironstore import config
         return {"cheap_model": config.CHEAP_MODEL, "smart_model": config.SMART_MODEL, "judge_model": JUDGE_MODEL,
                 "embedding_model": config.EMBEDDING_MODEL, "embedding_dims": getattr(config, "EMBEDDING_DIMENSIONS", None),
                 "chunk_size": config.CHUNK_SIZE, "chunk_overlap": config.CHUNK_OVERLAP,
@@ -349,6 +357,7 @@ def main():
     ap.add_argument("--note", default="", help="what changed in this version")
     args = ap.parse_args()
 
+    RESULTS_DIR.mkdir(exist_ok=True)
     rows = load_dataset()
     runs = run_assistant(rows, args.rerun)
     if any("contexts" not in runs[r["id"]] for r in rows):

@@ -16,3 +16,7 @@ doc_catalog.json
 eval_results.csv
 eval_runs.json
 eval_judgements.json
+
+.pytest_cache/
+evaluation/results/eval_runs.json
+evaluation/results/eval_judgements.json

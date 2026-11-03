@@ -845,5 +845,5 @@
     "top_k": 8,
     "min_similarity": 0.3
   },
-  "label": "v10b"
+  "label": null
 }

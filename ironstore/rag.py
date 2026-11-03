@@ -7,7 +7,7 @@ from pinecone import Pinecone
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from pydantic import BaseModel, Field
 from pathlib import Path
-import config
+from ironstore import config
 import re
 from pathlib import PureWindowsPath
 from urllib.parse import quote

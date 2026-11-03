@@ -8,11 +8,12 @@ from datetime import date
 from pathlib import Path
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-import config
+from ironstore import config
 from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone, ServerlessSpec
 import re
 from pypdf import PdfReader
+
 
 try:
     docx2txt = importlib.import_module("docx2txt")

@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from rag import IronStoreAssistant
+from ironstore.rag import IronStoreAssistant
 
 app = FastAPI(title="IronStore Enterprise AI Assistant")
 
@@ -65,7 +65,7 @@ def insights_page():
 @app.get("/api/insights")
 def insights_data():
     """Evaluation results exported by evaluate_rag.py (scores only, no document text)."""
-    path = Path(__file__).parent / "insights.json"
+    path = Path(__file__).parent / "evaluation" / "insights.json"
     if not path.exists():
         raise HTTPException(status_code=404, detail="No evaluation data yet")
     return json.loads(path.read_text(encoding="utf-8"))

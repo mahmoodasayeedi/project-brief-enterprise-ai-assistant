@@ -8,8 +8,8 @@ load_dotenv()
 # --- Paths ---
 DOCS_DIR = os.getenv("DOCS_DIR", "documents")          # folder with the company documents
 STORE_PATH = os.getenv("STORE_PATH", "vector_store.json")  # saved vector database
-CATALOG_PATH = os.getenv("CATALOG_PATH", "doc_catalog.json")  # info about every document
-REPORT_PATH = os.getenv("REPORT_PATH", "data_report.md")     # data-quality report
+CATALOG_PATH = os.getenv("CATALOG_PATH", "data/doc_catalog.json")  # info about every document
+REPORT_PATH = os.getenv("REPORT_PATH", "data/data_report.md")     # data-quality report
 
 # --- OpenAI models (model routing: cheap vs smart) ---
 CHEAP_MODEL = os.getenv("CHEAP_MODEL", "gpt-5.4-mini")
